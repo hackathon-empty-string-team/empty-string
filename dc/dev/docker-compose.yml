@@ -1,0 +1,13 @@
+services:
+  python:
+    build: ../../python
+    stdin_open: true
+    tty: true
+    ports:
+      - "8888:8888"
+
+    volumes:
+      - ../../python:/python
+
+    environment:
+      - DISPLAY=${DISPLAY}
