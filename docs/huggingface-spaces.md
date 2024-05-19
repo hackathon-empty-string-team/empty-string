@@ -3,6 +3,7 @@ Hugging Face Spaces and GitHub repositories serve different but complementary pu
 ### Comparison with GitHub Repositories
 
 - **GitHub Repository**:
+
   - **Purpose**: Primarily used for version control, collaboration, and sharing of code and projects.
   - **Capabilities**: Stores code, tracks changes, manages issues, and supports CI/CD pipelines.
   - **Usage**: Developers collaborate on software development projects, manage codebases, and deploy applications.
@@ -17,12 +18,15 @@ Hugging Face Spaces and GitHub repositories serve different but complementary pu
 You can import a GitHub repository into Hugging Face Spaces to deploy an application hosted on GitHub. Here’s how to do it:
 
 1. **Create a Space on Hugging Face**:
+
    - Go to the Hugging Face Spaces website and create a new Space.
 
 2. **Link to GitHub Repository**:
+
    - During the setup of the new Space, you can link it to a GitHub repository. This allows Hugging Face Spaces to pull the code from your GitHub repo.
 
 3. **Configure Your Space**:
+
    - Ensure your repository contains the necessary files for the framework you are using (Streamlit, Gradio, or HTML/CSS/JS).
    - For example, if you are using Streamlit, ensure you have a `requirements.txt` file for dependencies and a main Python script that runs the Streamlit app.
 
@@ -34,15 +38,17 @@ You can import a GitHub repository into Hugging Face Spaces to deploy an applica
 
 1. **Create a New Space**:
    - Navigate to Hugging Face Spaces and click on “New Space”.
-   
 2. **Set Up Space**:
+
    - Choose a name for your Space, select the appropriate SDK (e.g., Streamlit, Gradio, or HTML), and choose the visibility (public or private).
 
 3. **Connect GitHub Repository**:
+
    - In the Space settings, you will find an option to link a GitHub repository. Provide the URL of your GitHub repository.
    - Hugging Face Spaces will clone your GitHub repository to use it as the source code for your Space.
 
 4. **Configure and Deploy**:
+
    - Make sure your GitHub repository is set up correctly for the chosen framework. For example, a Streamlit app should have a `requirements.txt` and an entry-point script like `app.py`.
    - Once everything is set up, your Space will be deployed and can be accessed via a URL provided by Hugging Face.
 

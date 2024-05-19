@@ -8,3 +8,5 @@ numpy
 opencv-python
 scipy
 librosa
+plotly
+ipywidgets
