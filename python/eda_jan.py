@@ -323,3 +323,82 @@ for cluster_label in np.unique(clusters):
 
 
 # %%
+
+# Fit PCA
+pca = PCA().fit(all_features_scaled)
+
+# Method 1: Variance Explained
+explained_variance = pca.explained_variance_ratio_
+cumulative_explained_variance = np.cumsum(explained_variance)
+
+# Plot the cumulative explained variance
+plt.figure(figsize=(10, 6))
+plt.plot(cumulative_explained_variance, marker='o')
+plt.xlabel('Number of Principal Components')
+plt.ylabel('Cumulative Explained Variance')
+plt.title('Explained Variance vs. Number of Principal Components')
+plt.grid(True)
+plt.show()
+
+
+
+# %%
+# Method 2: Scree Plot
+plt.figure(figsize=(10, 6))
+plt.plot(np.arange(1, len(explained_variance) + 1), explained_variance, marker='o')
+plt.xlabel('Principal Component')
+plt.ylabel('Explained Variance')
+plt.title('Scree Plot')
+plt.grid(True)
+plt.show()
+
+
+
+# %%
+# Method 3: Kaiser Criterion
+eigenvalues = pca.explained_variance_
+kaiser_criterion = np.sum(eigenvalues > 1)
+
+
+# IMO this doesnt make sense at the moment, we need to extract more features
+print(f"Number of components selected by Kaiser Criterion: {kaiser_criterion}")
+
+
+
+# %%
+# Method 4: Cross-Validation
+# Evaluate a classifier with different numbers of principal components
+
+## do not run if you dont have time, this takes forever. 
+# scores = []
+# for n_components in range(1, len(explained_variance) + 1):
+#     pca = PCA(n_components=n_components)
+#     features_pca = pca.fit_transform(all_features_scaled)
+#     classifier = RandomForestClassifier()  # Use your preferred model here
+#     score = np.mean(cross_val_score(classifier, features_pca, clusters, cv=n_clusters))  # Assuming `clusters` are your labels
+#     scores.append(score)
+
+# # Plot cross-validation scores
+# plt.figure(figsize=(10, 6))
+# plt.plot(range(1, len(explained_variance) + 1), scores, marker='o')
+# plt.xlabel('Number of Principal Components')
+# plt.ylabel('Cross-Validation Score')
+# plt.title('Cross-Validation Score vs. Number of Principal Components')
+# plt.grid(True)
+# plt.show()
+
+# # Choosing the number of components that explain at least 95% of the variance
+# n_components_variance = np.argmax(cumulative_explained_variance >= 0.95) + 1
+# print(f"Number of components to retain 95% variance: {n_components_variance}")
+
+# # Choose the optimal number of components based on your analysis
+# optimal_n_components = n_components_variance  # or based on the scree plot, cross-validation, etc.
+# print(f"Optimal number of components: {optimal_n_components}")
+
+# # Perform PCA with the selected number of components
+# pca = PCA(n_components=optimal_n_components)
+# features_pca = pca.fit_transform(all_features_scaled)
+
+# %%
+
+# %%
