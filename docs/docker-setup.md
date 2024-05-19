@@ -1,9 +1,11 @@
 # DockerSetup
 
 This is a short version of howto install Docker on Ubuntu 20.04. It is basically a summary of the following source:\
-* https://docs.docker.com/install/linux/docker-ce/ubuntu/#os-requirements
+
+- https://docs.docker.com/install/linux/docker-ce/ubuntu/#os-requirements
 
 ## Install Docker
+
 ```bash
 sudo apt update
 sudo apt-get install \
@@ -24,15 +26,19 @@ sudo apt install docker-ce
 ```
 
 ## Add user to "docker" group & re-login
+
 Add yourself to the docker group (to get access to the docker deamon socket)\
 note: beeing member of docker gives you root access via the docker deamon
-```bash 
+
+```bash
 sudo usermod -a -G docker `whoami`
 ```
+
 Logout / Login to load the new group rights\
 Using Ubuntu Gnome it may be required to restart
 
 ## Install Docker-Compose
+
 ```bash
 sudo apt install python3-pip
 sudo pip3 install docker-compose
