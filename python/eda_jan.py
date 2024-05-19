@@ -127,9 +127,21 @@ import numpy as np
 import librosa
 from sklearn.preprocessing import StandardScaler
 import joblib
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import librosa
+from IPython.display import Audio, display
+from sklearn.model_selection import cross_val_score
+from sklearn.ensemble import RandomForestClassifier
 
+
+
+# %%
 # Directory containing the audio files
-audio_dir = "data/soundscape_data"
+# audio_dir = "data/soundscape_data"
+audio_dir = "data/SoundMeters_Ingles_Primary-20240519T132658Z-002/SoundMeters_Ingles_Primary"
 
 # Parameters for windowing
 window_size = 10  # window size in seconds
@@ -152,7 +164,7 @@ os.makedirs(features_dir, exist_ok=True)
 
 # Iterate over each audio file in the directory
 for filename in os.listdir(audio_dir):
-    if filename.endswith(".flac"):
+    if filename.endswith(".wav"):
         file_path = os.path.join(audio_dir, filename)
         y, sr = librosa.load(file_path, sr=44100)
         
@@ -199,14 +211,10 @@ for filename in os.listdir(audio_dir):
 
 
 # %%
-import numpy as np
-import joblib
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
-
 # Directory to load features
 features_dir = "features"
+n_clusters = 5
+
 
 # Load all features
 all_features = []
@@ -223,7 +231,7 @@ pca = PCA(n_components=2)
 features_pca = pca.fit_transform(all_features)
 
 # Perform k-means clustering
-kmeans = KMeans(n_clusters=5)  # Example: 5 clusters
+kmeans = KMeans(n_clusters=n_clusters)  # Example: 5 clusters
 clusters = kmeans.fit_predict(all_features)
 
 # Plot the PCA-reduced features with cluster labels
@@ -245,21 +253,18 @@ joblib.dump(clustering_results, 'clustering_results.pkl')
 
 # Plot the clusters
 plt.figure(figsize=(10, 6))
-for i in range(5):
+for i in range(n_clusters):
     plt.plot(all_features[clusters == i].mean(axis=0), label=f'Cluster {i}')
 plt.legend()
 plt.title('Clustered Frequency Band Features')
+plt.xlabel('Feature Index (Frequency Bands)')
+plt.ylabel('Mean Feature Value (Energy in dB)')
 plt.show()
 
 # %%
-import os
-import numpy as np
-import librosa
-from IPython.display import Audio, display
-import joblib
-
 # Directory containing the audio files
-audio_dir = "data/soundscape_data"
+# audio_dir = "data/soundscape_data"
+audio_dir = "data/SoundMeters_Ingles_Primary-20240519T132658Z-002/SoundMeters_Ingles_Primary"
 # Directory to load features
 features_dir = "features"
 
@@ -278,7 +283,7 @@ audio_segments = []
 for feature_file in os.listdir(features_dir):
     if feature_file.endswith("_features.npy"):
         features, scaler = joblib.load(os.path.join(features_dir, feature_file))
-        filename = feature_file.replace('_features.npy', '.flac')
+        filename = feature_file.replace('_features.npy', '.wav')
         file_path = os.path.join(audio_dir, filename)
         y, sr = librosa.load(file_path, sr=44100)
 
