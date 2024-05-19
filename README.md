@@ -70,6 +70,8 @@ key take aways:
 - **Feature Flags**: Manage incomplete or experimental features.
 - **Code Reviews**: Maintain quality and knowledge sharing.
 
-
-
-
+### code format
+- lets stick to black for python and prettier for .md and other formats
+- using docker for the purpose of formatting is really easy
+- just `chmod +x format` so that the `format` is executable
+- then simply use `./format` before adding your changes and all the files will be autoformatted
