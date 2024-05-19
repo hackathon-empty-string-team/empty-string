@@ -1,5 +1,7 @@
 *.ipynb
 *.ipynb_checkpoints/
+*.pkl
 .Trash-0/
 __pycache__/
 data/
+features/
