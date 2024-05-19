@@ -19,7 +19,7 @@ essentially, you just have to build the container with the services you want. if
 docker compose up -d --build 
 ```
 
-only use the `--build` flag the first time around. **NOTE:** the `-d` flag stands for `detach` which means that your docker container runs in the background and does not log everything into your console.
+only use the `--build` flag the first time around, or if you want to rebuild the container (e.g. when having added a package you need in the container). **NOTE:** the `-d` flag stands for `detach` which means that your docker container runs in the background and does not log everything into your console.
 
 2. then, to check whether everything worked hit: 
 
