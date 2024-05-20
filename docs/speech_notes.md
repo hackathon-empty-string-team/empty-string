@@ -1,6 +1,6 @@
-#Notes from a discussion with a speech PhD student 
+# Notes from a discussion with a speech PhD student :
 
-#Processing Pipeline for Human Speech Recordings
+# Processing Pipeline for Human Speech Recordings
 
 Imagine you have 10-minute recordings of human speech (5 minutes of speech, 5 minutes of background noise). The typical processing pipeline involves:
 
