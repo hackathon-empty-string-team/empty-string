@@ -15,7 +15,9 @@ please feel free to add / change / challenge things!
 
 essentially, you just have to build the container with the services you want. if you're interested in it i can go into more detail just let me know.
 
-1. navigate to dc/dev and run:
+1. clone the repo
+
+2. navigate to dc/dev and run:
 
 ```
 docker compose up -d --build
