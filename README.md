@@ -1,6 +1,6 @@
-# Source of truth
+# Brainforest EcoHackathon 2024, Group "" (pronounced empty string)
 
-## welcome and initial setup
+## welcome and minimal setup
 
 hi all,
 i think when we start with the EDA, it suffices if anyone just uses what they are used to (f.e. conda or whatever). However, afterwards, i think it could be helpful that everyone, always has exactly the same environment, same package/python versions, which is why i propose working with docker to minimize headaches and "but it works on my machine" issues. I think with this minimal setup below, we can fully focus on hacking while not having pain with painful stuff.
