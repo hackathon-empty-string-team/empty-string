@@ -64,14 +64,6 @@ now you shoold see the running docker containers.
   1.  `chmod +x format` so that the `format` file is executable
   2.  then simply use `./format` before adding your changes and all the files will be autoformatted
 
-- **Frequent Commits**: Small, incremental changes reduce integration risks.
-- **Comprehensive Testing**: Automated tests for codebase coverage.
-- **Feature Flags**: Manage incomplete or experimental features.
-- **Code Reviews**: Maintain quality and knowledge sharing.
+  ## awesome data overview
 
-### code format
-
-- lets stick to black for python and prettier for .md and other formats
-- using docker for the purpose of formatting is really easy
-- just `chmod +x format` so that the `format` is executable
-- then simply use `./format` before adding your changes and all the files will be autoformatted
+  ![](./docs/data_overview_yuri.jpg)
