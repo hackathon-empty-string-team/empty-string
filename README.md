@@ -66,4 +66,4 @@ now you shoold see the running docker containers.
 
 ## awesome data overview
 
-  ![](./docs/data_overview_yuri.jpg)
+![](./docs/data_overview_yuri.jpg)
