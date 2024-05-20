@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # Run as root, otherwise the container cannot modify the mounted files.
-docker run --rm --user root --volume $(pwd):/work tmknom/prettier prettier --loglevel warn --write .
+docker run --rm --user root --volume $(pwd):/work tmknom/prettier prettier --log-level warn --write .
 
 # Format Python files using Black
 docker run --rm --user root --volume $(pwd):/data cytopia/black:latest . 
