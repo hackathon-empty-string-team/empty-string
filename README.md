@@ -64,6 +64,6 @@ now you shoold see the running docker containers.
   1.  `chmod +x format` so that the `format` file is executable
   2.  then simply use `./format` before adding your changes and all the files will be autoformatted
 
-  ## awesome data overview
+## awesome data overview
 
   ![](./docs/data_overview_yuri.jpg)
