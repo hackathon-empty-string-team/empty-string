@@ -10,3 +10,4 @@ scipy
 librosa
 plotly
 ipywidgets
+tensorflow
