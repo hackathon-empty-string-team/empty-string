@@ -1,3 +1,15 @@
+---
+title: empty string
+emoji: 🗅
+colorFrom: green
+colorTo: yellow
+sdk: gradio
+sdk_version: 4.31.5
+app_file: python/app.py
+pinned: false
+license: apache-2.0
+---
+
 # Brainforest EcoHackathon 2024, Group "" (pronounced empty string)
 
 ## welcome and minimal setup
