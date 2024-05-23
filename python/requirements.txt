@@ -11,3 +11,5 @@ librosa
 plotly
 ipywidgets
 tensorflow
+transformers
+torch
