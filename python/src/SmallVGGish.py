@@ -1,7 +1,27 @@
 import torch.nn as nn
 
 class SmallerVGGishAutoencoder(nn.Module):
+    """
+    A PyTorch implementation of a smaller VGGish-based Autoencoder for audio feature extraction and reconstruction.
+    
+    Attributes:
+        encoder (nn.Sequential): The encoder part of the autoencoder, consisting of convolutional layers.
+        flatten_size (int): The size of the flattened encoder output.
+        fc1 (nn.Linear): The fully connected layer that compresses the encoded features.
+        fc2 (nn.Linear): The fully connected layer that decompresses the encoded features.
+        decoder (nn.Sequential): The decoder part of the autoencoder, consisting of transposed convolutional layers.
+    
+    Methods:
+        forward(x): Forward pass through the autoencoder.
+    """
     def __init__(self, input_channels=1, encoded_dim=128):
+        """
+        Initializes the SmallerVGGishAutoencoder with the given parameters.
+
+        Args:
+            input_channels (int): Number of input channels. Default is 1.
+            encoded_dim (int): Dimension of the encoded feature vector. Default is 128.
+        """
         super(SmallerVGGishAutoencoder, self).__init__()
         
         # Encoder
@@ -42,6 +62,15 @@ class SmallerVGGishAutoencoder(nn.Module):
         )
     
     def forward(self, x):
+        """
+        Forward pass through the autoencoder.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape [batch_size, num_examples, channels, height, width].
+        
+        Returns:
+            tuple: Encoded features and reconstructed input tensor.
+        """
         batch_size, num_examples, channels, height, width = x.shape
         # print(f"Input shape: {x.shape}")
         
@@ -70,3 +99,4 @@ class SmallerVGGishAutoencoder(nn.Module):
         # print(f"Final output shape: {x.shape}")
         
         return encoded, x
+
