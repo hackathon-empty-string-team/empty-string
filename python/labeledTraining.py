@@ -38,6 +38,18 @@ from torch.utils.data import Sampler, Dataset, DataLoader
 import math
 from torch.nn.utils.rnn import pad_sequence
 
+"""
+2024-05-25 19:51:34.086854: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-05-25 19:51:38.067901: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+"""
+
+
+# %% [markdown]
+# Here I took Jan's Transformation functions. HOWEVER, most of these transformations are commented out, due to performance issues, namely:
+#
+# - Gaussians to Spectrograms
+# - Convolutions incl. PoolingLayer
 
 # %%
 def gaussian_2d(x, y, mean_x, mean_y, std_dev_x, std_dev_y):
@@ -152,11 +164,28 @@ def plot_random_spectrograms(results_dict):
 
 
 # %% [markdown]
-# So the approach here is to do the transforms in the __init__ function only and not already in the __getitem__ function. This can be changed as soon as we have enough memory.
+# So the approach here is to do the transforms in the __init__ function only and not already in the __getitem__ function.
+#
+# Takeaways:
+#
+# - All of the features reside in memory when extracting them with the __init__ function, and are easily retrievable afterwards. However in the beginning, there is A LOT of memory needed and most probably not scalable. On the contrary, if we would extract them in the __getitem__ function, it would take much longer for each access of the dataset
+
+# %% [markdown]
+# ### Hyperparameters
+# DON'T change the Immutables!!!
+
+# %%
+# Immutables: Only here for readability of code
+SAMPLING_RATE = 44100
+
+SW_SIZE = 1
+SW_HOP = 0.5
+TARGET_BATCH_SIZE = 500
+
 
 # %%
 class BirdDataset(torch.utils.data.Dataset):
-    def __init__(self, labels_file, song_dir, sw_size=1, sw_hop=0.5, transform=None, target_transform=None):
+    def __init__(self, labels_file, song_dir, sw_size=1, sw_hop=0.5):
         """
         bird_labels: CSV file of the labels
         song_dir: directory to the bird song files
@@ -166,13 +195,14 @@ class BirdDataset(torch.utils.data.Dataset):
         song_chunks: transformed chunks for every song_file
         """
         self.bird_labels = pd.read_csv(labels_file)
+        
         self.song_dir = song_dir
-        self.song_files = [x for x in os.listdir(song_dir) if x[:2] == "XC"]
-        self.transform = transform
-        self.target_transform = target_transform
+        self.song_files = [x for x in os.listdir(song_dir) if x[:2] == "XC"] # only take the labels we can match with an entry in labels.csv
+        
         self.sw_size = sw_size
         self.sw_hop = sw_hop
-        self.song_chunks = [self.getFeatures(os.path.join(song_dir, x), 44100) for x in self.song_files]
+        
+        self.song_chunks = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files] # Extracts all of the features of the song files
 
 
     # We measure the length of the dataset by the number of training points (and not by the size of the label csv)
@@ -186,77 +216,84 @@ class BirdDataset(torch.utils.data.Dataset):
         --> It should be straightforward to uncomment them again
     """
     def getFeatures(self, fname, target_sr):
+
+        """
+            S: sampling rate
+            S_t: transformed sampling
+            
+        """
         
         y, sr = librosa.load(fname, sr=target_sr)
         
-        # Convert window size and hop size to samples
+        # Calculate no. of samples from sliding/hop window size
         window_samples = int(self.sw_size * sr)
         hop_samples = int(self.sw_hop * sr)
         
-        # Number of total windows that can fit in the signal with the defined hop size
+        # No. of windows that fit in the entire audio file
         num_windows = 1 + (len(y) - window_samples) // hop_samples
-
-        #print("Num windows: {}".format(num_windows))
         
-        # Preallocate an array to store the chunks
+        # Preallocate and fill an array with chunks
         windows = np.zeros((num_windows, window_samples))
-
-        # Use a for loop to generate each window
         for i in range(num_windows):
             start = i * hop_samples
             end = start + window_samples
             windows[i, :] = y[start:end]
-            #print(y[start:end].shape)
 
         chunks = []
-        # C: chunks
         for i, w in enumerate(windows):
 
             if len(w) < window_samples:
-                break
+                break # Detect last sample
             
-            # Compute STFT
-            S = librosa.stft(w)
-            S_db = librosa.amplitude_to_db(np.abs(S))
+            # Short-time Fourier Transform
+            S = librosa.stft(w) # (S,) --> (1025, S_t)
+            S_db = librosa.amplitude_to_db(np.abs(S)) # Adjust spectrogram to dB scale
             
-            # Define Gaussian parameters
-            x_means = np.linspace(0, S_db.shape[1], 5)
-            y_means = np.linspace(0, S_db.shape[0], 5)
-            std_dev_x = S_db.shape[1] / 10
-            std_dev_y = S_db.shape[0] / 10
+            """
+                Bottleneck COMMENTED OUT: Gaussian filters to spectrograms
+            """
+            #x_means = np.linspace(0, S_db.shape[1], 5)
+            #y_means = np.linspace(0, S_db.shape[0], 5)
+            #std_dev_x = S_db.shape[1] / 10
+            #std_dev_y = S_db.shape[0] / 10
             
             # Apply Gaussian masks to the spectrogram
             #gaussian_spectrograms = apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y)
             #output_vectors = []
             # M: masks
+            """
+                Bottleneck COMMENTED OUT: Convolutions
+            """
             #for key, data in gaussian_spectrograms.items():
                 #S_db_gaussian = data['S_db_gaussian'] # 2D spectrogram
                 # O: channels
                 #output_vector_np = apply_conv2d(S_db_gaussian) # O
                 #output_vectors.append(output_vector_np.flatten())
                 #output_vector_np = S_db_gaussian
-            output_vectors = np.array(S_db)
-            #print("S_db.shape = {}".format(S_db.shape))
+            output_vectors = np.array(gaussian_spectrograms)
             chunks.append(output_vectors)
         chunks = np.array(chunks)
 
         return chunks
 
-    """
-        Here I have uncommented the previous approach to get the chunks in the getitem function only
-        This has moved to the __init__, and we can simply access the chunks by the self.song_chunks array
-    """
+    # Basically the equivalent of implementing dataset[idx]
     def __getitem__(self, idx):
         song_fname = self.song_files[idx]
+
+        """
+            COMMENTED OUT: Here I have uncommented the previous approach to get the chunks in the getitem function only
+            This has moved to the __init__, and we can simply access the chunks by the self.song_chunks array
+        """
         #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname))
         chunks = self.song_chunks[idx]
-        label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]]
-        if not label_df.empty:
-            # Choosing the first entry if we get 2 entries (bc same filename in gr. manaus and amazonas folders)
-            label = (label_df["bid"].values)[0]
-        else:
-            label = np.array([]) 
-            print("Label empty for {}".format(song_fname))
+
+        
+        label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
+
+        assert not label_df.empty, "No matching labels for {}".format(song_fname) # Important right?
+        
+        # Edge Case: Choosing the first entry if we get 2 entries (bc sometimes the same filename is to be found in the gr. manaus and amazonas folders)
+        label = (label_df["bid"].values)[0]
         
         return chunks, label
 
@@ -270,9 +307,13 @@ class DynamicBatchSampler(Sampler):
         self.dataset = dataset
         self.target_batch_size = target_batch_size
         self.indices = list(range(len(dataset)))
-        self.indices.sort(key=lambda x: dataset[x][0].shape[0], reverse=True)  # Sorting by length may help in better batching
-        print("Initialized Batch Sampler")
+        self.indices.sort(key=lambda x: dataset[x][0].shape[0], reverse=True)  # Here we sort by length, as to help the Sampler group similarly sized elements together
 
+    """
+        Complicated code I know: Basically we are trying to squeeze in as many collection of chunks
+        (which correspond to an audio file) into a batch, and if the next collection doesn't fit in to
+        the current batch, we create a new batch
+    """
     def __iter__(self):
         batch = []
         current_batch_size = 0
@@ -286,27 +327,26 @@ class DynamicBatchSampler(Sampler):
             current_batch_size += item_size
         if batch:
             yield batch
-        print("Iter done")
 
+    # The total amount of batches we will get with our data
     def __len__(self):
         return math.ceil(sum(self.dataset[idx].shape[0] for idx in self.indices) / self.target_batch_size)
 
 
 # %%
 def collate_fn(batch):
-    # Extract audio data and labels from the batch
+    
     audio_data = [item[0] for item in batch]
     labels = [item[1] for item in batch]
 
-    # Ensure all audio data items are tensors; pad them to the same length
-    # Check if the items are already tensors, otherwise convert them
+    # - Is batch item a torch.Tensor? --> if not convert it to one
+    # Pad the rest of the sequence
     audio_data_padded = pad_sequence([ad if isinstance(ad, torch.Tensor) else torch.tensor(ad) for ad in audio_data],
                                      batch_first=True, padding_value=0.0)
 
-    # Handling labels which might be of different lengths or not in tensor form
-    # Example: Convert all labels to tensors, assuming they are simple lists of integers
+    # Are labels torch.Tensors? --> if not convert them to torch.Tensor's
     if all(isinstance(label, torch.Tensor) for label in labels):
-        labels_padded = pad_sequence(labels, batch_first=True, padding_value=-1)  # Using -1 as padding value, adjust as needed
+        labels_padded = pad_sequence(labels, batch_first=True, padding_value=0)  # 0 as padding value, because we have NaN:0
     else:
         labels_padded = torch.tensor([label for label in labels], dtype=torch.long)
 
@@ -315,14 +355,19 @@ def collate_fn(batch):
 
 # %%
 b = BirdDataset("./data/labels.csv", "./data/songs_condensed")
-batch_sampler = DynamicBatchSampler(b, target_batch_size=50)  # Adjust target batch size based on your dataset and memory limits
+batch_sampler = DynamicBatchSampler(b, target_batch_size=TARGET_BATCH_SIZE)
 
 # %%
-dl = DataLoader(b, batch_sampler=batch_sampler, collate_fn=collate_fn)
+loader = DataLoader(b, batch_sampler=batch_sampler, collate_fn=collate_fn)
 
 # Usage in training
-for x_train, x_label in dl:
+for x_train, x_label in loader:
     # Training logic here
-    print(x_label)
+    pass
 
-# %%
+# %% [markdown]
+# ### Statistics - Performance Bottlenecks
+
+# %% [markdown]
+# Loading 13 samples with convolutions and gaussian transforms: 70 sec.
+# Loading 13 samples without convolutions and without gauss. transorms: 4 sec.
