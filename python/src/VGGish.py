@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch.nn as nn
 
 class VGGishAutoencoder(nn.Module):
     def __init__(self, input_channels=1, encoded_dim=128):
