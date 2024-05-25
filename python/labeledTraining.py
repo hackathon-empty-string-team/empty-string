@@ -167,12 +167,12 @@ class BirdDataset(torch.utils.data.Dataset):
         """
         self.bird_labels = pd.read_csv(labels_file)
         self.song_dir = song_dir
-        self.song_files = os.listdir(song_dir)
+        self.song_files = [x for x in os.listdir(song_dir) if x[:2] == "XC"]
         self.transform = transform
         self.target_transform = target_transform
         self.sw_size = sw_size
         self.sw_hop = sw_hop
-        self.song_chunks = [self.getFeatures(os.path.join(song_dir, x)) for x in self.song_files]
+        self.song_chunks = [self.getFeatures(os.path.join(song_dir, x), 44100) for x in self.song_files]
 
 
     # We measure the length of the dataset by the number of training points (and not by the size of the label csv)
@@ -185,9 +185,9 @@ class BirdDataset(torch.utils.data.Dataset):
         I have commented out all the CONVOLUTIONS and the GAUSSIAN TRANSFORMATIONS
         --> It should be straightforward to uncomment them again
     """
-    def getFeatures(self, fname):
+    def getFeatures(self, fname, target_sr):
         
-        y, sr = librosa.load(fname, sr=None)
+        y, sr = librosa.load(fname, sr=target_sr)
         
         # Convert window size and hop size to samples
         window_samples = int(self.sw_size * sr)
@@ -195,6 +195,8 @@ class BirdDataset(torch.utils.data.Dataset):
         
         # Number of total windows that can fit in the signal with the defined hop size
         num_windows = 1 + (len(y) - window_samples) // hop_samples
+
+        #print("Num windows: {}".format(num_windows))
         
         # Preallocate an array to store the chunks
         windows = np.zeros((num_windows, window_samples))
@@ -204,6 +206,7 @@ class BirdDataset(torch.utils.data.Dataset):
             start = i * hop_samples
             end = start + window_samples
             windows[i, :] = y[start:end]
+            #print(y[start:end].shape)
 
         chunks = []
         # C: chunks
@@ -233,6 +236,7 @@ class BirdDataset(torch.utils.data.Dataset):
                 #output_vectors.append(output_vector_np.flatten())
                 #output_vector_np = S_db_gaussian
             output_vectors = np.array(S_db)
+            #print("S_db.shape = {}".format(S_db.shape))
             chunks.append(output_vectors)
         chunks = np.array(chunks)
 
@@ -246,11 +250,13 @@ class BirdDataset(torch.utils.data.Dataset):
         song_fname = self.song_files[idx]
         #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname))
         chunks = self.song_chunks[idx]
-        label_df = self.bird_labels[self.bird_labels["Filename"] == song_fname]
+        label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]]
         if not label_df.empty:
-            label = label_df["bid"].values
+            # Choosing the first entry if we get 2 entries (bc same filename in gr. manaus and amazonas folders)
+            label = (label_df["bid"].values)[0]
         else:
             label = np.array([]) 
+            print("Label empty for {}".format(song_fname))
         
         return chunks, label
 
@@ -288,24 +294,28 @@ class DynamicBatchSampler(Sampler):
 
 # %%
 def collate_fn(batch):
+    # Extract audio data and labels from the batch
+    audio_data = [item[0] for item in batch]
+    labels = [item[1] for item in batch]
 
-    audio_data = torch.Tensor(np.array([item[0] for item in batch]))
-    labels = torch.Tensor(np.array([item[1] for item in batch]))
+    # Ensure all audio data items are tensors; pad them to the same length
+    # Check if the items are already tensors, otherwise convert them
+    audio_data_padded = pad_sequence([ad if isinstance(ad, torch.Tensor) else torch.tensor(ad) for ad in audio_data],
+                                     batch_first=True, padding_value=0.0)
 
-    # Pad the audio data
-    audio_data_padded = pad_sequence(audio_data, batch_first=True, padding_value=0.0)
+    # Handling labels which might be of different lengths or not in tensor form
+    # Example: Convert all labels to tensors, assuming they are simple lists of integers
+    if all(isinstance(label, torch.Tensor) for label in labels):
+        labels_padded = pad_sequence(labels, batch_first=True, padding_value=-1)  # Using -1 as padding value, adjust as needed
+    else:
+        labels_padded = torch.tensor([label for label in labels], dtype=torch.long)
 
-    # Since labels could be different lengths and types, we need to handle them properly
-    # Here, assuming labels are simply lists of integers or similar:
-    # (adjust accordingly if your labels need more complex handling)
-    labels = torch.tensor(labels, dtype=torch.long)
-
-    return audio_data_padded, labels
+    return audio_data_padded, labels_padded
 
 
 # %%
-b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
-batch_sampler = DynamicBatchSampler(b, target_batch_size=5)  # Adjust target batch size based on your dataset and memory limits
+b = BirdDataset("./data/labels.csv", "./data/songs_condensed")
+batch_sampler = DynamicBatchSampler(b, target_batch_size=50)  # Adjust target batch size based on your dataset and memory limits
 
 # %%
 dl = DataLoader(b, batch_sampler=batch_sampler, collate_fn=collate_fn)
@@ -313,6 +323,6 @@ dl = DataLoader(b, batch_sampler=batch_sampler, collate_fn=collate_fn)
 # Usage in training
 for x_train, x_label in dl:
     # Training logic here
-    print(x_train)
+    print(x_label)
 
 # %%
