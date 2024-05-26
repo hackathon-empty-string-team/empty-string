@@ -52,9 +52,12 @@ To enable the following instructions: AVX2 FMA, in other operations, rebuild Ten
 # - Convolutions incl. PoolingLayer
 
 # %%
-def gaussian_2d(x, y, mean_x, mean_y, std_dev_x, std_dev_y):
+
+    
+    
+def gaussian_1d(x, y, mean_y, std_dev_y):
     """
-    Generates a 2D Gaussian mask.
+    Generates a 1D Gaussian mask only on frequency axis.
 
     Parameters:
     x (numpy.ndarray): X coordinates.
@@ -67,16 +70,16 @@ def gaussian_2d(x, y, mean_x, mean_y, std_dev_x, std_dev_y):
     Returns:
     numpy.ndarray: 2D Gaussian mask.
     """
-    gauss_x = np.exp(-0.5 * ((x - mean_x) / std_dev_x) ** 2)
     gauss_y = np.exp(-0.5 * ((y - mean_y) / std_dev_y) ** 2)
+    gauss_x = np.ones(x.shape)
     return gauss_x * gauss_y
 
-def apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y):
+
+    
+def apply_gaussian_to_spectrogram_1d(S_db, y_means, std_dev_y):
     """
     Applies Gaussian masks to a spectrogram and returns the results.
 
-    Essentially what we discussed the other day: In order to not "hard" cut the signal in x (time) and y (Hz) direction, we just apply Gauss in both directions.
-    For now i chose to do 5 in each direction. Therefore, every timestamp we analyze, gets 25 "blobs"
 
     Parameters:
     S_db (numpy.ndarray): Spectrogram in dB.
@@ -95,20 +98,37 @@ def apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y):
     
     results = {}
     
-    for x_idx, x_mean in enumerate(x_means):
-        for y_idx, y_mean in enumerate(y_means):
-            gaussian_mask = gaussian_2d(x_grid, y_grid, x_mean, y_mean, std_dev_x, std_dev_y)
-            S_db_gaussian = S_db * gaussian_mask
-            key = f'x_{x_idx}_y_{y_idx}'
-            results[key] = {
-                'S_db_gaussian': S_db_gaussian,
-                'x_mean': x_mean,
-                'y_mean': y_mean,
-                'std_dev_x': std_dev_x,
-                'std_dev_y': std_dev_y
-            }
+   
+    gaussian_mask = gaussian_1d(x, y_grid, y_means, std_dev_y)
+    S_db_gaussian = S_db * gaussian_mask
+    key = f'y_0'
+    results[key] = {
+        'S_db_gaussian': S_db_gaussian,
+        'y_mean': y_means,
+        'std_dev_y': std_dev_y
+    }
     
     return results
+    
+def preprocess_chunck(y_window, lower_bound_freq=800, higher_bound_freq=9000):
+    
+    
+    # Compute STFT
+    S = librosa.stft(y_window)
+    S_db = librosa.amplitude_to_db(np.abs(S))
+    
+    # Define Gaussian parameters
+    #x_means = np.linspace(0, S_db.shape[1], 3)
+    y_means = higher_bound_freq-lower_bound_freq / 2
+    #std_dev_x = S_db.shape[1] / 3
+    std_dev_y = higher_bound_freq-lower_bound_freq / 3
+    
+    # Apply Gaussian masks to the spectrogram
+    #gaussian_spectrograms = apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y)
+    gaussian_spectrograms = apply_gaussian_to_spectrogram_1d(S_db, y_means, std_dev_y)
+    
+
+    return gaussian_spectrograms['y_0']["S_db_gaussian"]
 
 def apply_conv2d(S_db_mod):
     """
@@ -215,7 +235,7 @@ class BirdDataset(torch.utils.data.Dataset):
         I have commented out all the CONVOLUTIONS and the GAUSSIAN TRANSFORMATIONS
         --> It should be straightforward to uncomment them again
     """
-    def getFeatures(self, fname, target_sr):
+    def getFeatures(self, fname, target_sr, lower_bound_freq=2000, higher_bound_freq=7000):
 
         """
             S: sampling rate
@@ -245,32 +265,7 @@ class BirdDataset(torch.utils.data.Dataset):
             if len(w) < window_samples:
                 break # Detect last sample
             
-            # Short-time Fourier Transform
-            S = librosa.stft(w) # (S,) --> (1025, S_t)
-            S_db = librosa.amplitude_to_db(np.abs(S)) # Adjust spectrogram to dB scale
-            
-            """
-                Bottleneck COMMENTED OUT: Gaussian filters to spectrograms
-            """
-            #x_means = np.linspace(0, S_db.shape[1], 5)
-            #y_means = np.linspace(0, S_db.shape[0], 5)
-            #std_dev_x = S_db.shape[1] / 10
-            #std_dev_y = S_db.shape[0] / 10
-            
-            # Apply Gaussian masks to the spectrogram
-            #gaussian_spectrograms = apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y)
-            #output_vectors = []
-            # M: masks
-            """
-                Bottleneck COMMENTED OUT: Convolutions
-            """
-            #for key, data in gaussian_spectrograms.items():
-                #S_db_gaussian = data['S_db_gaussian'] # 2D spectrogram
-                # O: channels
-                #output_vector_np = apply_conv2d(S_db_gaussian) # O
-                #output_vectors.append(output_vector_np.flatten())
-                #output_vector_np = S_db_gaussian
-            output_vectors = np.array(S_db)
+            output_vectors = preprocess_chunck(w, lower_bound_freq=lower_bound_freq, higher_bound_freq=higher_bound_freq)
             chunks.append(output_vectors)
         chunks = np.array(chunks)
 
@@ -284,8 +279,8 @@ class BirdDataset(torch.utils.data.Dataset):
             COMMENTED OUT: Here I have uncommented the previous approach to get the chunks in the getitem function only
             This has moved to the __init__, and we can simply access the chunks by the self.song_chunks array
         """
-        #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname))
-        chunks = self.song_chunks[idx]
+        chunks = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
+        #chunks = self.song_chunks[idx]
         
         label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
 
