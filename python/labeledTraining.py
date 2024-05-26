@@ -270,7 +270,7 @@ class BirdDataset(torch.utils.data.Dataset):
                 #output_vector_np = apply_conv2d(S_db_gaussian) # O
                 #output_vectors.append(output_vector_np.flatten())
                 #output_vector_np = S_db_gaussian
-            output_vectors = np.array(gaussian_spectrograms)
+            output_vectors = np.array(S_db)
             chunks.append(output_vectors)
         chunks = np.array(chunks)
 
@@ -286,7 +286,6 @@ class BirdDataset(torch.utils.data.Dataset):
         """
         #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname))
         chunks = self.song_chunks[idx]
-
         
         label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
 
@@ -296,6 +295,69 @@ class BirdDataset(torch.utils.data.Dataset):
         label = (label_df["bid"].values)[0]
         
         return chunks, label
+
+    """
+        NOTE: getTriplets is to be used when using ALL of the datapoints
+              getTriplets_subset is to be used when using a SUBSET of the datapoints
+    """
+    
+    def getTriplets(self, idx):
+
+        main_idx = idx
+        _, label = self.__getitem__(main_idx)
+        pos_idx = -1
+        neg_idx = -1
+
+        ds = self.bird_labels
+
+        neg_df = ds[ds["bid"] != label]
+        neg_df = neg_df["Filename"].values
+        pos_df = ds[ds["bid"] == label]
+        pos_df = pos_df["Filename"].values
+
+        print("Neg", neg_df,"Pos", pos_df,"Files", self.song_files)
+
+        try:
+            neg_idx = self.song_files.index(random.choice(neg_df))
+        except:
+            neg_idx = -1
+
+        try:
+            pos_idx = self.song_files.index(random.choice(pos_df))
+        except:
+            pos_idx = -1
+
+
+        return main_idx, pos_idx, neg_idx
+
+    def getTriplets_subset(self, idx):
+
+        main_idx = idx
+        _, label = self.__getitem__(main_idx)
+        pos_idx = -1
+        neg_idx = -1
+
+        ds = self.bird_labels
+
+        neg_df = ds[ds["bid"] != label]
+        neg_df = neg_df[neg_df["Filename"].isin(self.song_files)]["Filename"].values
+        pos_df = ds[ds["bid"] == label]
+        pos_df = pos_df[pos_df["Filename"].isin(self.song_files)]["Filename"].values
+
+        print("Neg", neg_df,"Pos", pos_df,"Files", self.song_files)
+
+        try:
+            neg_idx = self.song_files.index(random.choice(neg_df))
+        except:
+            neg_idx = -1
+
+        try:
+            pos_idx = self.song_files.index(random.choice(pos_df))
+        except:
+            pos_idx = -1
+
+
+        return main_idx, pos_idx, neg_idx
 
 # %%
 """
