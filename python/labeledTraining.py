@@ -222,12 +222,41 @@ class BirdDataset(torch.utils.data.Dataset):
         self.sw_size = sw_size
         self.sw_hop = sw_hop
         
-        self.song_chunks = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files] # Extracts all of the features of the song files
+        features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files] # Extracts all of the features of the song files
+        self.song_chunks = [x[0] for x in features]
+        self.song_chunks = np.concatenate(self.song_chunks, axis=0)
+
+        self.startingIndices = self.getStartingIndices([x[1] for x in features])
+        print(type(self.startingIndices))
 
 
+    def getStartingIndices(self, chunk_nums):
+
+        indices = np.zeros(len(chunk_nums))
+        for i, chunk_num in enumerate(chunk_nums):
+            if i == 0:
+                indices[i] = 0 
+            if i == len(chunk_nums) - 1:
+                break
+            indices[i] = chunk_nums[i - 1] + indices[i - 1]
+        return indices
+
+    def getSongIdx(self, chunk_idx):
+
+        indices = self.startingIndices
+        for i, idx in enumerate(indices):
+
+            if idx > chunk_idx:
+
+                return (i - 1)
+                
+        return -1
+            
+        
+    
     # We measure the length of the dataset by the number of training points (and not by the size of the label csv)
     def __len__(self):
-        return len(self.song_files)
+        return len(self.song_chunks)
 
     # Adjusted transforms by Jan and Kai with a overlapping sliding window
     # NOTE: all the bottleneck parts have been commented out for simplicity
@@ -268,19 +297,21 @@ class BirdDataset(torch.utils.data.Dataset):
             output_vectors = preprocess_chunck(w, lower_bound_freq=lower_bound_freq, higher_bound_freq=higher_bound_freq)
             chunks.append(output_vectors)
         chunks = np.array(chunks)
-
-        return chunks
+        print(chunks.shape)
+        return chunks, num_windows
 
     # Basically the equivalent of implementing dataset[idx]
-    def __getitem__(self, idx):
-        song_fname = self.song_files[idx]
+    def __getitem__(self, chunk_idx):
+
+        song_idx = self.getSongIdx(chunk_idx)
+        song_fname = self.song_files[song_idx]
 
         """
             COMMENTED OUT: Here I have uncommented the previous approach to get the chunks in the getitem function only
             This has moved to the __init__, and we can simply access the chunks by the self.song_chunks array
         """
-        chunks = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
-        #chunks = self.song_chunks[idx]
+        #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
+        chunk = self.song_chunks[chunk_idx]
         
         label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
 
@@ -288,8 +319,7 @@ class BirdDataset(torch.utils.data.Dataset):
         
         # Edge Case: Choosing the first entry if we get 2 entries (bc sometimes the same filename is to be found in the gr. manaus and amazonas folders)
         label = (label_df["bid"].values)[0]
-        
-        return chunks, label
+        return chunk, label
 
     """
         NOTE: getTriplets is to be used when using ALL of the datapoints
@@ -391,36 +421,16 @@ class DynamicBatchSampler(Sampler):
 
 
 # %%
-def collate_fn(batch):
-    
-    audio_data = [item[0] for item in batch]
-    labels = [item[1] for item in batch]
-
-    # - Is batch item a torch.Tensor? --> if not convert it to one
-    # Pad the rest of the sequence
-    audio_data_padded = pad_sequence([ad if isinstance(ad, torch.Tensor) else torch.tensor(ad) for ad in audio_data],
-                                     batch_first=True, padding_value=0.0)
-
-    # Are labels torch.Tensors? --> if not convert them to torch.Tensor's
-    if all(isinstance(label, torch.Tensor) for label in labels):
-        labels_padded = pad_sequence(labels, batch_first=True, padding_value=0)  # 0 as padding value, because we have NaN:0
-    else:
-        labels_padded = torch.tensor([label for label in labels], dtype=torch.long)
-
-    return audio_data_padded, labels_padded
-
-
-# %%
 b = BirdDataset("./data/labels.csv", "./data/songs_condensed")
-batch_sampler = DynamicBatchSampler(b, target_batch_size=TARGET_BATCH_SIZE)
 
 # %%
-loader = DataLoader(b, batch_sampler=batch_sampler, collate_fn=collate_fn)
-
+loader = DataLoader(b)
+count = 0
 # Usage in training
 for x_train, x_label in loader:
     # Training logic here
-    pass
+    count += 1
+print(count, len(b))
 
 # %% [markdown]
 # ### Statistics - Performance Bottlenecks
@@ -428,3 +438,5 @@ for x_train, x_label in loader:
 # %% [markdown]
 # Loading 13 samples with convolutions and gaussian transforms: 70 sec.
 # Loading 13 samples without convolutions and without gauss. transorms: 4 sec.
+
+# %%
