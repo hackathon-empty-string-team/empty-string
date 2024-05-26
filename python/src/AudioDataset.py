@@ -5,9 +5,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-class AudioDataset(Dataset):
+class OverlappingAudioDataset(Dataset):
     """
-    A custom PyTorch Dataset class for loading audio files and converting them into log mel spectrograms.
+    A custom PyTorch Dataset class for loading audio files and converting them into overlapping log mel spectrograms.
 
     Attributes:
         root_dir (str): Root directory containing the audio files.
@@ -21,7 +21,7 @@ class AudioDataset(Dataset):
     """
     def __init__(self, root_dir, target_sr=16000, n_mels=64, num_frames=96):
         """
-        Initializes the AudioDataset with the given parameters and loads the paths of audio files.
+        Initializes the OverlappingAudioDataset with the given parameters and loads the paths of audio files.
 
         Args:
             root_dir (str): Root directory containing the audio files.
@@ -61,9 +61,8 @@ class AudioDataset(Dataset):
         mel_spectrogram = librosa.feature.melspectrogram(y=y, sr=self.target_sr, n_mels=self.n_mels)
         log_mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
         
-        # Frame into non-overlapping examples
+        # Frame into overlapping examples
         hop_length = int(self.target_sr * 0.01)  # 10ms hop length
-        window_length = int(self.target_sr * 0.025)  # 25ms window length
         log_mel_examples = librosa.util.frame(log_mel_spectrogram, frame_length=self.num_frames, hop_length=hop_length)
         
         # Reshape to match input dimensions for the model
