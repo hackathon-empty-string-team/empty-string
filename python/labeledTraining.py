@@ -30,13 +30,16 @@ import librosa
 import librosa.display
 import os
 import pickle
-import tensorflow as tf
+#import tensorflow as tf
 import random
 import torch
 import time
 from torch.utils.data import Sampler, Dataset, DataLoader
 import math
 from torch.nn.utils.rnn import pad_sequence
+
+#import nn
+import torch.nn as nn
 
 """
 2024-05-25 19:51:34.086854: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
@@ -198,8 +201,8 @@ def plot_random_spectrograms(results_dict):
 # Immutables: Only here for readability of code
 SAMPLING_RATE = 44100
 
-SW_SIZE = 1
-SW_HOP = 0.5
+SW_SIZE = 5
+SW_HOP = 2.5
 TARGET_BATCH_SIZE = 500
 
 
@@ -222,22 +225,19 @@ class BirdDataset(torch.utils.data.Dataset):
         self.sw_size = sw_size
         self.sw_hop = sw_hop
         
-        features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files] # Extracts all of the features of the song files
-        self.song_chunks = [x[0] for x in features]
-        self.song_chunks = np.concatenate(self.song_chunks, axis=0)
-
-        self.startingIndices = self.getStartingIndices([x[1] for x in features])
+        # Initialize starting indices and chunk counts per song file
+        features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files]
+        self.song_chunk_counts = [x[1] for x in features]
+        self.startingIndices = self.getStartingIndices(self.song_chunk_counts)
 
 
     def getStartingIndices(self, chunk_nums):
-        print("Chunknums", chunk_nums)
-        count = 0
         indices = np.zeros(len(chunk_nums) + 1)
+        count = 0
         for i, chunk_num in enumerate(chunk_nums):
             indices[i] = count
-            count += chunk_nums[i]
-            if i == len(chunk_nums) - 1:
-                indices[i + 1] = count
+            count += chunk_num
+        indices[-1] = count  # Set the last index to the total count. for example, if we have 3 songs with 2, 3, and 4 chunks, the starting indices will be [0, 2, 5, 9]
         return indices
 
     def getSongIdx(self, chunk_idx):
@@ -254,7 +254,7 @@ class BirdDataset(torch.utils.data.Dataset):
     
     # We measure the length of the dataset by the number of training points (and not by the size of the label csv)
     def __len__(self):
-        return len(self.song_chunks)
+        return int(self.startingIndices[-1])
 
     # Adjusted transforms by Jan and Kai with a overlapping sliding window
     # NOTE: all the bottleneck parts have been commented out for simplicity
@@ -312,12 +312,12 @@ class BirdDataset(torch.utils.data.Dataset):
         song_idx = self.getSongIdx(chunk_idx)
         song_fname = self.song_files[song_idx]
 
-        """
-            COMMENTED OUT: Here I have uncommented the previous approach to get the chunks in the getitem function only
-            This has moved to the __init__, and we can simply access the chunks by the self.song_chunks array
-        """
-        #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
-        chunk = self.song_chunks[chunk_idx]
+        # Calculate the local chunk index within the song
+        local_chunk_idx = chunk_idx - int(self.startingIndices[song_idx])
+
+        # Load only the required chunk
+        chunks, _ = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
+        chunk = chunks[local_chunk_idx]
         
         return chunk, self.getLabel(song_fname)
 
@@ -381,27 +381,99 @@ class DynamicBatchSampler(Sampler):
     # The total amount of batches we will get with our data
     def __len__(self):
         return math.ceil(sum(self.dataset[idx].shape[0] for idx in self.indices) / self.target_batch_size)
+    
+def create_triplets(outputs, labels):
+    """
+    Create triplets from the output of the model and the labels
+    
+    Parameters:
+    outputs: tensor of shape (batch_size, feature size)
+    labels: tensor of shape (batch_size,)
+    
+    Returns:
+    triplets: list of tuples of the form (anchor_idx, positive_idx, negative_idx)
+    """
+    triplets = []
+    num_triplets = 0
+    
+    for i in range(outputs.size(0)):
+        anchor = outputs[i]
+        anchor_label = labels[i]
+        
+        # Get indices of all samples with the same label, exc
+        positive_indices = (labels == anchor_label).nonzero().squeeze(1)
+        
+        # Get indices of all samples with different label
+        negative_indices = (labels != anchor_label).nonzero().squeeze(1)
+        
+        if positive_indices.size(0) == 0 or negative_indices.size(0) == 0:
+            continue
+        
+        # Select a random positive and negative sample
+        positive_idx = random.choice(positive_indices)
+        negative_idx = random.choice(negative_indices)
+        
+        triplets.append((i, positive_idx, negative_idx))
+        num_triplets += 1
+    
+    return torch.tensor(triplets)
+
+class MyConv2D(nn.Module):
+    def __init__(self, numChannels):
+        # call the parent constructor
+        super(MyConv2D, self).__init__()
+        # initialize first CONV layer
+        self.conv1 = nn.Conv2d(in_channels=numChannels, out_channels=128,
+            kernel_size=(3, 3))
+        
+    def forward(self, x):
+        # pass the input through the first CONV layer and then through
+        # the ReLU activation function followed by a max-pooling layer
+        print(x.shape)
+        x = self.conv1(x)
+        x = nn.AvgPool2d(kernel_size=(x.shape[2], x.shape[3]), stride=2)(x)
+        x=x.squeeze(-1).squeeze(-1)
+        
+        
+        # return the feature map
+        return x
 
 
 # %%
-b = BirdDataset("./data/labels.csv", "./data/songs_condensed")
+b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
 
 # %%
-loader = DataLoader(b)
-count = 0
-# Usage in training
-for x_train, x_label in loader:
-    # Training logic here
-    print(x_train.shape, x_label)
+loader = DataLoader(b, batch_size=10, shuffle=True)
 
-# %%
-getTriplet(b, 99)
+loss_fn=torch.nn.TripletMarginLoss()
+model=MyConv2D(1).to("cuda")
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-# %% [markdown]
-# ### Statistics - Performance Bottlenecks
+nb_epochs = 3
+model.train()
 
-# %% [markdown]
-# Loading 13 samples with convolutions and gaussian transforms: 70 sec.
-# Loading 13 samples without convolutions and without gauss. transorms: 4 sec.
+for epoch in range(nb_epochs):
+    running_loss = 0.0
+    for i, data in enumerate(loader, 0):
+        inputs, labels = data
+        inputs=inputs.float().to("cuda")
+        labels=labels.to("cuda")
+        optimizer.zero_grad()
+        outputs = model(inputs.unsqueeze(1))
+        triplets = create_triplets(outputs, labels)
+        if len(triplets) == 0:
+            continue
+        anchor = outputs[triplets[:, 0]]
+        positive = outputs[triplets[:, 1]]
+        negative = outputs[triplets[:, 2]]
+        loss = loss_fn(anchor, positive, negative)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
 
-# %%
+        if i % 20 == 19:
+
+            print(f"Epoch {epoch + 1}, iteration {i + 1}: loss {running_loss / 200}")
+            running_loss = 0.0
+    
+    print(f"Epoch {epoch + 1} finished")
