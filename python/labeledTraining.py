@@ -227,18 +227,17 @@ class BirdDataset(torch.utils.data.Dataset):
         self.song_chunks = np.concatenate(self.song_chunks, axis=0)
 
         self.startingIndices = self.getStartingIndices([x[1] for x in features])
-        print(type(self.startingIndices))
 
 
     def getStartingIndices(self, chunk_nums):
-
-        indices = np.zeros(len(chunk_nums))
+        print("Chunknums", chunk_nums)
+        count = 0
+        indices = np.zeros(len(chunk_nums) + 1)
         for i, chunk_num in enumerate(chunk_nums):
-            if i == 0:
-                indices[i] = 0 
+            indices[i] = count
+            count += chunk_nums[i]
             if i == len(chunk_nums) - 1:
-                break
-            indices[i] = chunk_nums[i - 1] + indices[i - 1]
+                indices[i + 1] = count
         return indices
 
     def getSongIdx(self, chunk_idx):
@@ -252,7 +251,6 @@ class BirdDataset(torch.utils.data.Dataset):
                 
         return -1
             
-        
     
     # We measure the length of the dataset by the number of training points (and not by the size of the label csv)
     def __len__(self):
@@ -297,8 +295,16 @@ class BirdDataset(torch.utils.data.Dataset):
             output_vectors = preprocess_chunck(w, lower_bound_freq=lower_bound_freq, higher_bound_freq=higher_bound_freq)
             chunks.append(output_vectors)
         chunks = np.array(chunks)
-        print(chunks.shape)
         return chunks, num_windows
+
+    def getLabel(self, song_fname):
+
+        label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
+
+        assert not label_df.empty, "No matching labels for {}".format(song_fname) # Important right?
+        
+        # Edge Case: Choosing the first entry if we get 2 entries (bc sometimes the same filename is to be found in the gr. manaus and amazonas folders)
+        return (label_df["bid"].values)[0]
 
     # Basically the equivalent of implementing dataset[idx]
     def __getitem__(self, chunk_idx):
@@ -313,76 +319,33 @@ class BirdDataset(torch.utils.data.Dataset):
         #chunks = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
         chunk = self.song_chunks[chunk_idx]
         
-        label_df = self.bird_labels[self.bird_labels["XC_id"] == song_fname[:8]] # Matching XC identifier contained in filename with labels.csv entries
+        return chunk, self.getLabel(song_fname)
 
-        assert not label_df.empty, "No matching labels for {}".format(song_fname) # Important right?
-        
-        # Edge Case: Choosing the first entry if we get 2 entries (bc sometimes the same filename is to be found in the gr. manaus and amazonas folders)
-        label = (label_df["bid"].values)[0]
-        return chunk, label
 
-    """
-        NOTE: getTriplets is to be used when using ALL of the datapoints
-              getTriplets_subset is to be used when using a SUBSET of the datapoints
-    """
+# %%
+def getTriplet(ds, bid):
     
-    def getTriplets(self, idx):
+    df = ds.bird_labels
+    
+    pos_df = df[df["bid"] == bid]
+    pos_df = pos_df[pos_df["Filename"].isin(ds.song_files)]["Filename"].values
+    neg_df = df[df["bid"] != bid]
+    neg_df = neg_df[neg_df["Filename"].isin(ds.song_files)]["Filename"].values
+    # Choose random pos/neg file
+    pos_fname = np.random.choice(pos_df)
+    neg_fname = np.random.choice(neg_df)
 
-        main_idx = idx
-        _, label = self.__getitem__(main_idx)
-        pos_idx = -1
-        neg_idx = -1
+    # Get index in the song_files list
+    pos_findex = ds.song_files.index(pos_fname)
+    neg_findex = ds.song_files.index(neg_fname)
 
-        ds = self.bird_labels
+    print(ds.startingIndices)
 
-        neg_df = ds[ds["bid"] != label]
-        neg_df = neg_df["Filename"].values
-        pos_df = ds[ds["bid"] == label]
-        pos_df = pos_df["Filename"].values
+    # Get random chunk from the random file
+    pos_cindex = random.randint(ds.startingIndices[pos_findex], ds.startingIndices[pos_findex + 1])
+    neg_cindex = random.randint(ds.startingIndices[neg_findex], ds.startingIndices[neg_findex + 1])
+    return pos_cindex, neg_cindex
 
-        print("Neg", neg_df,"Pos", pos_df,"Files", self.song_files)
-
-        try:
-            neg_idx = self.song_files.index(random.choice(neg_df))
-        except:
-            neg_idx = -1
-
-        try:
-            pos_idx = self.song_files.index(random.choice(pos_df))
-        except:
-            pos_idx = -1
-
-
-        return main_idx, pos_idx, neg_idx
-
-    def getTriplets_subset(self, idx):
-
-        main_idx = idx
-        _, label = self.__getitem__(main_idx)
-        pos_idx = -1
-        neg_idx = -1
-
-        ds = self.bird_labels
-
-        neg_df = ds[ds["bid"] != label]
-        neg_df = neg_df[neg_df["Filename"].isin(self.song_files)]["Filename"].values
-        pos_df = ds[ds["bid"] == label]
-        pos_df = pos_df[pos_df["Filename"].isin(self.song_files)]["Filename"].values
-
-        print("Neg", neg_df,"Pos", pos_df,"Files", self.song_files)
-
-        try:
-            neg_idx = self.song_files.index(random.choice(neg_df))
-        except:
-            neg_idx = -1
-
-        try:
-            pos_idx = self.song_files.index(random.choice(pos_df))
-        except:
-            pos_idx = -1
-
-
-        return main_idx, pos_idx, neg_idx
 
 # %%
 """
@@ -429,8 +392,10 @@ count = 0
 # Usage in training
 for x_train, x_label in loader:
     # Training logic here
-    count += 1
-print(count, len(b))
+    print(x_train.shape, x_label)
+
+# %%
+getTriplet(b, 99)
 
 # %% [markdown]
 # ### Statistics - Performance Bottlenecks
