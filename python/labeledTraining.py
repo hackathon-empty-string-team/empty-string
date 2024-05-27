@@ -113,11 +113,11 @@ def apply_gaussian_to_spectrogram_1d(S_db, y_means, std_dev_y):
     
     return results
     
-def preprocess_chunck(y_window, lower_bound_freq=800, higher_bound_freq=9000):
+def preprocess_chunck(y_window, lower_bound_freq=800, higher_bound_freq=9000, target_sr=16000, n_mels=128, hop_length=2048, n_fft=4096):
     
     
     # Compute STFT
-    S = librosa.stft(y_window)
+    S = librosa.feature.melspectrogram(y=y_window, sr=target_sr, n_mels=n_mels, hop_length=hop_length, n_fft=n_fft)
     S_db = librosa.amplitude_to_db(np.abs(S))
     
     # Define Gaussian parameters
@@ -128,10 +128,12 @@ def preprocess_chunck(y_window, lower_bound_freq=800, higher_bound_freq=9000):
     
     # Apply Gaussian masks to the spectrogram
     #gaussian_spectrograms = apply_gaussian_to_spectrogram(S_db, x_means, y_means, std_dev_x, std_dev_y)
-    gaussian_spectrograms = apply_gaussian_to_spectrogram_1d(S_db, y_means, std_dev_y)
+    #gaussian_spectrograms = apply_gaussian_to_spectrogram_1d(S_db, y_means, std_dev_y)
+    gaussian_spectrograms=S_db
     
 
-    return gaussian_spectrograms['y_0']["S_db_gaussian"]
+    #return gaussian_spectrograms['y_0']["S_db_gaussian"]
+    return gaussian_spectrograms
 
 def apply_conv2d(S_db_mod):
     """
@@ -199,16 +201,15 @@ def plot_random_spectrograms(results_dict):
 
 # %%
 # Immutables: Only here for readability of code
-SAMPLING_RATE = 44100
+SAMPLING_RATE = 48000
 
 SW_SIZE = 5
 SW_HOP = 2.5
 TARGET_BATCH_SIZE = 500
 
 
-# %%
 class BirdDataset(torch.utils.data.Dataset):
-    def __init__(self, labels_file, song_dir, sw_size=1, sw_hop=0.5):
+    def __init__(self, labels_file, song_dir, sw_size=5, sw_hop=2.5):
         """
         bird_labels: CSV file of the labels
         song_dir: directory to the bird song files
@@ -457,7 +458,7 @@ class MyModelVGG(nn.Module):
         self.conv4 = nn.Conv2d(in_channels=32, out_channels=16,
             kernel_size=(3, 3))
         # initialize the linear layers
-        self.fc1 = nn.Linear(2976, 128)
+        self.fc1 = nn.Linear(480, 128)
 
     def forward(self, x):
         # pass the input through the first set of CONV => RELU =>
@@ -468,6 +469,7 @@ class MyModelVGG(nn.Module):
         x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 128, 511, 63)
         # pass the input through the second set of CONV => RELU =>
         # POOL layers
+        print(x.shape)
         x = nn.ReLU()(self.conv2(x)) # shape (batch_size, 64, 509, 61)
         x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 64, 254, 30)
         # pass the input through the third set of CONV => RELU =>
@@ -489,11 +491,13 @@ class MyModelVGG(nn.Module):
 b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
 
 # %%
-loader = DataLoader(b, batch_size=50, shuffle=True)
+loader = DataLoader(b, batch_size=5, shuffle=True)
 
 loss_fn=torch.nn.TripletMarginLoss()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #model=MyConv2D(1).to("cuda")
-model=MyModelVGG(1).to("cuda")
+model=MyModelVGG(1).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
@@ -504,8 +508,8 @@ for epoch in range(nb_epochs):
     running_loss = 0.0
     for i, data in enumerate(loader, 0):
         inputs, labels = data
-        inputs=inputs.float().to("cuda")
-        labels=labels.to("cuda")
+        inputs=inputs.float().to(device)
+        labels=labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs.unsqueeze(1))
         triplets = create_triplets(outputs, labels)
