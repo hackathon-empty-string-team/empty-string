@@ -226,7 +226,7 @@ class BirdDataset(torch.utils.data.Dataset):
         self.sw_hop = sw_hop
         
         # Initialize starting indices and chunk counts per song file
-        features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE) for x in self.song_files]
+        features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE, count_only=True) for x in self.song_files]
         self.song_chunk_counts = [x[1] for x in features]
         self.startingIndices = self.getStartingIndices(self.song_chunk_counts)
 
@@ -262,7 +262,7 @@ class BirdDataset(torch.utils.data.Dataset):
         I have commented out all the CONVOLUTIONS and the GAUSSIAN TRANSFORMATIONS
         --> It should be straightforward to uncomment them again
     """
-    def getFeatures(self, fname, target_sr, lower_bound_freq=2000, higher_bound_freq=7000):
+    def getFeatures(self, fname, target_sr, lower_bound_freq=2000, higher_bound_freq=7000, count_only=False):
 
         """
             S: sampling rate
@@ -278,8 +278,13 @@ class BirdDataset(torch.utils.data.Dataset):
         
         # No. of windows that fit in the entire audio file
         num_windows = 1 + (len(y) - window_samples) // hop_samples
+
+        if count_only:
+            return None, num_windows
         
         # Preallocate and fill an array with chunks
+        if num_windows <= 0:
+            return np.array([]), 0
         windows = np.zeros((num_windows, window_samples))
         for i in range(num_windows):
             start = i * hop_samples
@@ -437,17 +442,60 @@ class MyConv2D(nn.Module):
         
         # return the feature map
         return x
+    
+class MyModelVGG(nn.Module):
+    def __init__(self, numChannels):
+        # call the parent constructor
+        super(MyModelVGG, self).__init__()
+        # initialize the CONV layers
+        self.conv1 = nn.Conv2d(in_channels=numChannels, out_channels=128,
+            kernel_size=(3, 3))
+        self.conv2 = nn.Conv2d(in_channels=128, out_channels=64,
+            kernel_size=(3, 3))
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=32,
+            kernel_size=(3, 3))
+        self.conv4 = nn.Conv2d(in_channels=32, out_channels=16,
+            kernel_size=(3, 3))
+        # initialize the linear layers
+        self.fc1 = nn.Linear(2976, 128)
+
+    def forward(self, x):
+        # pass the input through the first set of CONV => RELU =>
+        # example if x is of shape (batch_size, 1, 1025, 129)
+        # POOL layers
+        print(x.shape)
+        x = nn.ReLU()(self.conv1(x)) # shape (batch_size, 128, 1023, 127)
+        x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 128, 511, 63)
+        # pass the input through the second set of CONV => RELU =>
+        # POOL layers
+        x = nn.ReLU()(self.conv2(x)) # shape (batch_size, 64, 509, 61)
+        x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 64, 254, 30)
+        # pass the input through the third set of CONV => RELU =>
+        # POOL layers
+        x = nn.ReLU()(self.conv3(x)) # shape (batch_size, 32, 252, 28)
+        x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 32, 126, 14)
+        # pass the input through the fourth set of CONV => RELU =>
+        # POOL layers
+        x = nn.ReLU()(self.conv4(x)) # shape (batch_size, 16, 124, 12)
+        x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 16, 62, 6)
+        # flatten the volume, then pass it through a fully-connected layer
+        x = nn.Flatten()(x) # shape (batch_size, 5952)
+        x = nn.ReLU()(self.fc1(x)) # shape (batch_size, 128)
+        # return the feature map
+        return x
 
 
 # %%
 b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
 
 # %%
-loader = DataLoader(b, batch_size=10, shuffle=True)
+loader = DataLoader(b, batch_size=50, shuffle=True)
 
 loss_fn=torch.nn.TripletMarginLoss()
-model=MyConv2D(1).to("cuda")
+#model=MyConv2D(1).to("cuda")
+model=MyModelVGG(1).to("cuda")
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
 
 nb_epochs = 3
 model.train()
@@ -475,5 +523,5 @@ for epoch in range(nb_epochs):
 
             print(f"Epoch {epoch + 1}, iteration {i + 1}: loss {running_loss / 200}")
             running_loss = 0.0
-    
+
     print(f"Epoch {epoch + 1} finished")
