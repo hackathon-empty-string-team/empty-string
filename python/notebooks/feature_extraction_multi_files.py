@@ -255,7 +255,7 @@ from sklearn.manifold import TSNE
 
 # %%
 # Perform KMeans clustering
-kmeans = KMeans(n_clusters=6, random_state=0).fit(features_all_files_normalized)
+kmeans = KMeans(n_clusters=15, random_state=0).fit(features_all_files_normalized)
 labels = kmeans.labels_
 
 # %% [markdown]
@@ -264,7 +264,7 @@ labels = kmeans.labels_
 # %%
 import seaborn as sns
 
-n_pca_components = 4
+n_pca_components = 6
 
 # Assuming features_all_files and labels are already defined
 pca = PCA(n_components=n_pca_components)
@@ -279,11 +279,8 @@ df['Cluster'] = labels
 # Plot pairwise relationships in the DataFrame
 sns.pairplot(df, hue='Cluster', palette='Set1', diag_kind='kde', plot_kws={'alpha': 0.6, 's': 5}, height=2)
 
-# plt.savefig(plot_dir+'pairplot.png')
+plt.savefig(plot_dir+'pairplot.png')
 plt.show()
 
-
-# %%
-# ! ls / 
 
 # %%
