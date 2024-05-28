@@ -10,4 +10,6 @@ scipy
 librosa
 plotly
 ipywidgets
-tensorflow
+scikit-learn
+torch
+torchaudio
