@@ -38,23 +38,15 @@ from torch.utils.data import Sampler, Dataset, DataLoader
 import math
 from torch.nn.utils.rnn import pad_sequence
 
+from tqdm import tqdm
+
 #import nn
 import torch.nn as nn
 
-"""
-2024-05-25 19:51:34.086854: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
-To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2024-05-25 19:51:38.067901: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
-"""
 
+# for PCA plotting
+from sklearn.decomposition import PCA
 
-# %% [markdown]
-# Here I took Jan's Transformation functions. HOWEVER, most of these transformations are commented out, due to performance issues, namely:
-#
-# - Gaussians to Spectrograms
-# - Convolutions incl. PoolingLayer
-
-# %%
 
     
     
@@ -135,56 +127,6 @@ def preprocess_chunck(y_window, lower_bound_freq=800, higher_bound_freq=9000, ta
     #return gaussian_spectrograms['y_0']["S_db_gaussian"]
     return gaussian_spectrograms
 
-def apply_conv2d(S_db_mod):
-    """
-    Applies a Conv2D layer followed by global average pooling to a modified spectrogram.
-
-    Parameters:
-    S_db_mod (numpy.ndarray): Modified spectrogram in dB.
-
-    Returns:
-    numpy.ndarray: Output vector after Conv2D and global average pooling.
-    """
-    # Reshape to add batch dimension (1, height, width, channels)
-    input_tensor = tf.reshape(S_db_mod, (1, S_db_mod.shape[0], S_db_mod.shape[1], 1))
-    
-    # Create a Conv2D layer with 128 filters, 3x3 kernel size, and 'same' padding
-    conv_layer = tf.keras.layers.Conv2D(filters=128, kernel_size=(3, 3), padding='same', activation='relu')
-    
-    # Apply the Conv2D layer to the input tensor
-    #output_tensor = conv_layer(input_tensor)
-    output_tensor = input_tensor
-    
-    # Apply global average pooling to get the output as a vector with 128 features
-    #output_vector = tf.keras.layers.GlobalAveragePooling2D()(output_tensor)
-    output_vector = tf.reduce_mean(output_tensor, axis=[-2, -1], keepdims=True)
-    # Convert the output vector to a numpy array
-    output_vector_np = output_vector.numpy()
-    
-    return output_vector_np
-
-def plot_random_spectrograms(results_dict):
-    """
-    Plots all modified spectrograms for a random time stamp. (Just for visualization purpose to know what is going on)
-
-    Parameters:
-    results_dict (dict): Dictionary containing the results with modified spectrograms.
-    """
-    # Select a random time stamp
-    time_stamp_idx = random.randint(0, len(next(iter(results_dict['spectrograms'].values()))) - 1)
-    
-    # Plot each spectrogram for the selected time stamp
-    plt.figure(figsize=(15, 20))
-    
-    for i, (key, entries) in enumerate(results_dict['spectrograms'].items()):
-        plt.subplot(5, 5, i + 1)  # Assuming there are 25 spectrograms to plot (5x5 grid)
-        entry = entries[time_stamp_idx]
-        librosa.display.specshow(entry['S_db_gaussian'], sr=results_dict['sampling_rate'], x_axis='time', y_axis='log')
-        plt.colorbar(format='%+2.0f dB')
-        plt.title(f'{key}')
-    
-    plt.tight_layout()
-    plt.show()
 
 
 
@@ -201,7 +143,7 @@ def plot_random_spectrograms(results_dict):
 
 # %%
 # Immutables: Only here for readability of code
-SAMPLING_RATE = 48000
+SAMPLING_RATE = 48000 #xenocanto
 
 SW_SIZE = 5
 SW_HOP = 2.5
@@ -230,6 +172,18 @@ class BirdDataset(torch.utils.data.Dataset):
         features = [self.getFeatures(os.path.join(song_dir, x), SAMPLING_RATE, count_only=True) for x in self.song_files]
         self.song_chunk_counts = [x[1] for x in features]
         self.startingIndices = self.getStartingIndices(self.song_chunk_counts)
+        self.labels = self.bird_labels['bid'].tolist() 
+
+        self.class_indices = self.get_class_indices()
+
+    def get_class_indices(self):
+        class_indices = {}
+        for idx, label in enumerate(self.labels):
+            if label not in class_indices:
+                class_indices[label] = []
+            class_indices[label].append(idx)
+        return class_indices
+
 
 
     def getStartingIndices(self, chunk_nums):
@@ -271,6 +225,7 @@ class BirdDataset(torch.utils.data.Dataset):
             
         """
         
+        
         y, sr = librosa.load(fname, sr=target_sr)
         
         # Calculate no. of samples from sliding/hop window size
@@ -278,19 +233,27 @@ class BirdDataset(torch.utils.data.Dataset):
         hop_samples = int(self.sw_hop * sr)
         
         # No. of windows that fit in the entire audio file
-        num_windows = 1 + (len(y) - window_samples) // hop_samples
+        num_windows = 1 + (len(y) - window_samples) // hop_samples 
+
+        
 
         if count_only:
             return None, num_windows
         
         # Preallocate and fill an array with chunks
-        if num_windows <= 0:
-            return np.array([]), 0
+        if num_windows <= 1:
+            # If the audio file is too short to have 2 chunks, pad it with its own data
+            num_windows = 2
+            needed_size=window_samples+hop_samples
+            y = np.pad(y, (0, needed_size), mode='wrap')
+        
+            
         windows = np.zeros((num_windows, window_samples))
         for i in range(num_windows):
             start = i * hop_samples
             end = start + window_samples
             windows[i, :] = y[start:end]
+            
 
         chunks = []
         for i, w in enumerate(windows):
@@ -314,43 +277,22 @@ class BirdDataset(torch.utils.data.Dataset):
 
     # Basically the equivalent of implementing dataset[idx]
     def __getitem__(self, chunk_idx):
-
         song_idx = self.getSongIdx(chunk_idx)
         song_fname = self.song_files[song_idx]
 
         # Calculate the local chunk index within the song
-        local_chunk_idx = chunk_idx - int(self.startingIndices[song_idx])
-
+        local_chunk_idx = chunk_idx - int(self.startingIndices[song_idx]) #it is the index of the chunk within the song
+        
         # Load only the required chunk
-        chunks, _ = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)
+        chunks, _ = self.getFeatures(os.path.join(self.song_dir, song_fname), target_sr=SAMPLING_RATE)  # Could be optimized to load only the required chunk
+        #print(chunks.shape)
         chunk = chunks[local_chunk_idx]
+
+        #normalize the chunk
+        chunk = (chunk - np.mean(chunk)) / np.std(chunk)
         
         return chunk, self.getLabel(song_fname)
 
-
-# %%
-def getTriplet(ds, bid):
-    
-    df = ds.bird_labels
-    
-    pos_df = df[df["bid"] == bid]
-    pos_df = pos_df[pos_df["Filename"].isin(ds.song_files)]["Filename"].values
-    neg_df = df[df["bid"] != bid]
-    neg_df = neg_df[neg_df["Filename"].isin(ds.song_files)]["Filename"].values
-    # Choose random pos/neg file
-    pos_fname = np.random.choice(pos_df)
-    neg_fname = np.random.choice(neg_df)
-
-    # Get index in the song_files list
-    pos_findex = ds.song_files.index(pos_fname)
-    neg_findex = ds.song_files.index(neg_fname)
-
-    print(ds.startingIndices)
-
-    # Get random chunk from the random file
-    pos_cindex = random.randint(ds.startingIndices[pos_findex], ds.startingIndices[pos_findex + 1])
-    neg_cindex = random.randint(ds.startingIndices[neg_findex], ds.startingIndices[neg_findex + 1])
-    return pos_cindex, neg_cindex
 
 
 # %%
@@ -397,22 +339,29 @@ def create_triplets(outputs, labels):
     labels: tensor of shape (batch_size,)
     
     Returns:
-    triplets: list of tuples of the form (anchor_idx, positive_idx, negative_idx)
+    triplets: tensor of triplets of the form (anchor_idx, positive_idx, negative_idx)
     """
     triplets = []
+    used_indices = set()
     num_triplets = 0
+    num_samples = outputs.size(0)
     
-    for i in range(outputs.size(0)):
-        anchor = outputs[i]
+    
+    for i in range(num_samples):
+        if i in used_indices:
+            continue
+        
         anchor_label = labels[i]
         
-        # Get indices of all samples with the same label, exc
-        positive_indices = (labels == anchor_label).nonzero().squeeze(1)
+        # Get indices of all samples with the same label, excluding the anchor
+        positive_indices = (labels == anchor_label).nonzero().squeeze(1).tolist()
+        positive_indices = [idx for idx in positive_indices if idx != i and idx not in used_indices]
         
         # Get indices of all samples with different label
-        negative_indices = (labels != anchor_label).nonzero().squeeze(1)
+        negative_indices = (labels != anchor_label).nonzero().squeeze(1).tolist()
+        negative_indices = [idx for idx in negative_indices if idx not in used_indices]
         
-        if positive_indices.size(0) == 0 or negative_indices.size(0) == 0:
+        if not positive_indices or not negative_indices:
             continue
         
         # Select a random positive and negative sample
@@ -420,8 +369,12 @@ def create_triplets(outputs, labels):
         negative_idx = random.choice(negative_indices)
         
         triplets.append((i, positive_idx, negative_idx))
+        used_indices.update({i, positive_idx, negative_idx})
         num_triplets += 1
-    
+        
+        if len(used_indices) >= num_samples:
+            break
+    print(num_triplets)
     return torch.tensor(triplets)
 
 class MyConv2D(nn.Module):
@@ -464,12 +417,12 @@ class MyModelVGG(nn.Module):
         # pass the input through the first set of CONV => RELU =>
         # example if x is of shape (batch_size, 1, 1025, 129)
         # POOL layers
-        print(x.shape)
+        #print(x.shape)
         x = nn.ReLU()(self.conv1(x)) # shape (batch_size, 128, 1023, 127)
         x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 128, 511, 63)
         # pass the input through the second set of CONV => RELU =>
         # POOL layers
-        print(x.shape)
+        #print(x.shape)
         x = nn.ReLU()(self.conv2(x)) # shape (batch_size, 64, 509, 61)
         x = nn.MaxPool2d(kernel_size=(2, 2), stride=2)(x) # shape (batch_size, 64, 254, 30)
         # pass the input through the third set of CONV => RELU =>
@@ -485,36 +438,116 @@ class MyModelVGG(nn.Module):
         x = nn.ReLU()(self.fc1(x)) # shape (batch_size, 128)
         # return the feature map
         return x
+    
+class BalancedBatchSampler(Sampler):
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.class_indices = dataset.class_indices
+        self.classes = list(self.class_indices.keys())
+        self.num_samples_per_class = min(len(indices) for indices in self.class_indices.values())
+
+    def __iter__(self):
+        # Goal: Iterate over the dataset in a balanced way, i.e., each batch will contain the same number of samples per class
+        balanced_indices = []
+        for class_label in self.classes: # Iterate over all classes
+            indices = np.random.choice(self.class_indices[class_label], self.num_samples_per_class, replace=False) # Choose random samples without replacement
+            balanced_indices.extend(indices) # Add the indices to the list of balanced indices
+        np.random.shuffle(balanced_indices) # Shuffle the indices to ensure that the classes are mixed
+        return iter(balanced_indices)
+
+    def __len__(self):
+        return self.num_samples_per_class * len(self.classes)
+    
+def plot_vectors_with_pca(vectors, labels):
+    # Perform PCA
+    pca = PCA(n_components=2)
+    pca_result = pca.fit_transform(vectors)
+    
+    
+    pca_result=np.array(pca_result)
+    pca_result=pca_result[np.array(labels)<100]
+    labels=np.array(labels)[np.array(labels)<100]
+
+
+
+    plt.figure(figsize=(8, 6))
+    for label in np.unique(labels):
+        indices = np.where(labels == label)
+        plt.scatter(pca_result[indices, 0], pca_result[indices, 1], label=label)
+    plt.title('PCA Visualization of Model Output Vectors')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+def plot_vectors_with_pca_multiple(vectors, labels):
+    # Perform PCA with 4 dimensions and plot them in 2D
+    pca = PCA(n_components=4)
+    pca_result = pca.fit_transform(vectors)
+    pca_result=np.array(pca_result)
+    pca_result=pca_result[np.array(labels)<100]
+    labels=np.array(labels)[np.array(labels)<100]
+    # Plot multiple 2D projections
+    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+    axs_i = 0
+    axs_j = 0
+    for i, j in [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]:
+        
+        for label in np.unique(labels):
+            indices = np.where(labels == label)
+            axs[axs_i, axs_j].scatter(pca_result[indices, i], pca_result[indices, j], label=label)
+        axs[axs_i, axs_j].set_xlabel(f'Principal Component {i + 1}')
+        axs[axs_i, axs_j].set_ylabel(f'Principal Component {j + 1}')
+        axs[axs_i, axs_j].legend()
+        axs[axs_i, axs_j].grid(True)
+        axs_i += 1
+        if axs_i == 2:
+            axs_i = 0
+            axs_j += 1
+    plt.suptitle('PCA Visualization of Model Output Vectors')
+    plt.tight_layout()
+
+    plt.show()
 
 
 # %%
-b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
+#b = BirdDataset("../data/labels.csv", "../data/songs_condensed")
+b_sub= BirdDataset("../data/labels.csv", "../data/sub_set")
 
 # %%
-loader = DataLoader(b, batch_size=5, shuffle=True)
+#balanced_sampler = BalancedBatchSampler(b_sub)
+#loader_bal = DataLoader(b_sub, batch_size=100, sampler=balanced_sampler)
+loader = DataLoader(b_sub, batch_size=100, shuffle=True)
 
 loss_fn=torch.nn.TripletMarginLoss()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #model=MyConv2D(1).to("cuda")
 model=MyModelVGG(1).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
 nb_epochs = 3
 model.train()
 
 for epoch in range(nb_epochs):
     running_loss = 0.0
-    for i, data in enumerate(loader, 0):
+    
+    # Initialize the progress bar for the current epoch
+    progress_bar = tqdm(enumerate(loader, 0), total=len(loader), desc=f"Epoch {epoch + 1}/{nb_epochs}", unit="batch")
+    
+    for i, data in progress_bar:
         inputs, labels = data
-        inputs=inputs.float().to(device)
-        labels=labels.to(device)
+        inputs = inputs.float().to(device)
+        labels = labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs.unsqueeze(1))
         triplets = create_triplets(outputs, labels)
+        
         if len(triplets) == 0:
             continue
+        
         anchor = outputs[triplets[:, 0]]
         positive = outputs[triplets[:, 1]]
         negative = outputs[triplets[:, 2]]
@@ -523,9 +556,47 @@ for epoch in range(nb_epochs):
         optimizer.step()
         running_loss += loss.item()
 
-        if i % 20 == 19:
-
-            print(f"Epoch {epoch + 1}, iteration {i + 1}: loss {running_loss / 200}")
+        # Update the progress bar description with the current loss
+        if i % 3 == 2:
+            progress_bar.set_postfix(loss=running_loss / 200)
             running_loss = 0.0
-
+    
     print(f"Epoch {epoch + 1} finished")
+    torch.save(model.state_dict(), "model_sub.pth")
+
+
+
+
+
+
+
+#create feature vectors one batch of sound
+def create_feature_vectors(model, loader):
+    feature_vectors = []
+    labels = []
+    
+    for i, data in enumerate(loader):
+        inputs, labels_batch = data
+        inputs = inputs.float().to(device)
+        labels_batch = labels_batch.to(device)
+        outputs = model(inputs.unsqueeze(1))
+        feature_vectors.extend(outputs.detach().cpu().numpy())
+        labels.extend(labels_batch.detach().cpu().numpy())
+    
+    return feature_vectors, labels
+
+# %%
+# Load the model
+model = MyModelVGG(1).to(device)
+model.load_state_dict(torch.load("model_sub.pth"))
+model.eval()
+
+# Create a DataLoader for the entire dataset
+loader = DataLoader(b_sub, batch_size=100, shuffle=True)
+
+# Create feature vectors for all the sounds in the dataset
+feature_vectors, labels = create_feature_vectors(model, loader)
+
+
+#plot_vectors_with_pca(feature_vectors, labels)
+plot_vectors_with_pca_multiple(feature_vectors, labels)
