@@ -18,7 +18,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
-import tensorflow as tf
+# import tensorflow as tf
+import torch
+import torch.nn as nn
+import numpy as np
 
 
 # %%
@@ -46,6 +49,41 @@ def plot_spectrogram_with_windows(spec_db, sr, time_windows, frequency_windows, 
 
     plt.show()
 
+# def apply_conv2d(S_db_mod):
+#     """
+#     Applies a Conv2D layer followed by global average pooling to a modified spectrogram.
+
+#     Parameters:
+#     S_db_mod (numpy.ndarray): Modified spectrogram in dB.
+
+#     Returns:
+#     numpy.ndarray: Output vector after Conv2D and global average pooling.
+#     """
+#     # Reshape to add batch dimension (1, height, width, channels)
+#     input_tensor = tf.reshape(S_db_mod, (1, S_db_mod.shape[0], S_db_mod.shape[1], 1))
+    
+#     # Create a Conv2D layer with 128 filters, 3x3 kernel size, and 'same' padding
+#     conv_layer = tf.keras.layers.Conv2D(
+#         filters=256,
+#         kernel_size=(10, 10),
+#         padding='same',
+#         activation='relu',
+#         kernel_initializer=tf.keras.initializers.GlorotUniform(seed=42)
+#     )
+    
+#     # Apply the Conv2D layer to the input tensor
+#     output_tensor = conv_layer(input_tensor)
+    
+#     # Apply global average pooling to get the output as a vector with 128 features
+#     output_vector = tf.keras.layers.GlobalAveragePooling2D()(output_tensor)
+    
+#     # Convert the output vector to a numpy array
+#     output_vector_np = output_vector.numpy()
+    
+#     return output_vector_np
+
+
+
 def apply_conv2d(S_db_mod):
     """
     Applies a Conv2D layer followed by global average pooling to a modified spectrogram.
@@ -56,26 +94,32 @@ def apply_conv2d(S_db_mod):
     Returns:
     numpy.ndarray: Output vector after Conv2D and global average pooling.
     """
-    # Reshape to add batch dimension (1, height, width, channels)
-    input_tensor = tf.reshape(S_db_mod, (1, S_db_mod.shape[0], S_db_mod.shape[1], 1))
+    torch.manual_seed(42)
+
+    # Convert the numpy array to a torch tensor and add batch and channel dimensions
+    input_tensor = torch.tensor(S_db_mod, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     
-    # Create a Conv2D layer with 128 filters, 3x3 kernel size, and 'same' padding
-    conv_layer = tf.keras.layers.Conv2D(
-        filters=256,
-        kernel_size=(10, 10),
-        padding='same',
-        activation='relu',
-        kernel_initializer=tf.keras.initializers.GlorotUniform(seed=42)
+    # Define a Conv2D layer with 256 filters, 10x10 kernel size, and 'same' padding
+    conv_layer = nn.Conv2d(
+        in_channels=1,
+        out_channels=256,
+        kernel_size=10,
+        padding=5,
+        bias=True
     )
     
-    # Apply the Conv2D layer to the input tensor
+    # Initialize weights using GlorotUniform (Xavier) initialization
+    nn.init.xavier_uniform_(conv_layer.weight, gain=nn.init.calculate_gain('relu'))
+    
+    # Apply the Conv2D layer
     output_tensor = conv_layer(input_tensor)
     
-    # Apply global average pooling to get the output as a vector with 128 features
-    output_vector = tf.keras.layers.GlobalAveragePooling2D()(output_tensor)
+    # Apply global average pooling
+    gap_layer = nn.AdaptiveAvgPool2d((1, 1))
+    output_vector = gap_layer(output_tensor).squeeze()
     
     # Convert the output vector to a numpy array
-    output_vector_np = output_vector.numpy()
+    output_vector_np = output_vector.detach().numpy()
     
     return output_vector_np
 
@@ -173,7 +217,8 @@ n_fft_shift = 256 # number of sampling points by which fft sub-samples are shift
 
 freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
 
-audio_file_dir = '/python/data/'
+# audio_file_dir = '/python/data/'
+audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-007/SoundMeters_Ingles_Primary/'
 plot_dir = '/python/plots/'
 
 # %% [markdown]
@@ -183,28 +228,72 @@ plot_dir = '/python/plots/'
 import time
 
 # %%
+import os
+import time
+
 features_all_files = []
+
+
+# Counter to limit the number of processed files
+file_count = 0
+max_files = 100
 
 # Loop over filenames in the directory
 for filename in os.listdir(audio_file_dir):
-    if filename.endswith(".wav"):  # Example: process only .wav files
+    if filename.endswith(".wav") and file_count < max_files:  # Process only .wav files and limit to max_files
         file_path = os.path.join(audio_file_dir, filename)
-        print('processing ',filename)
+        print('processing ', filename)
 
         start_time = time.time()
         
-        features = process_audio_file(file_path,
-                       freq_min, freq_max,
-                       w_df, w_df_shift,
-                       w_dt, w_dt_shift,
-                       n_fft, n_fft_shift
-                    )
+        # Assuming process_audio_file is defined elsewhere
+        features = process_audio_file(
+            file_path,
+            freq_min, freq_max,
+            w_df, w_df_shift,
+            w_dt, w_dt_shift,
+            n_fft, n_fft_shift
+        )
 
-        features_all_files = features_all_files + features
+        features_all_files.extend(features)  # Use extend to concatenate lists
 
         execution_time = time.time() - start_time
         
         print(f"Execution time: {execution_time:.2f} seconds \n")
+
+        # Increment the file counter
+        file_count += 1
+
+    # Break the loop if we have processed the desired number of files
+    if file_count >= max_files:
+        break
+
+# Print a message after processing the limited number of files
+print(f"Processed {file_count} files.")
+
+# %%
+# features_all_files = []
+
+# # Loop over filenames in the directory
+# for filename in os.listdir(audio_file_dir):
+#     if filename.endswith(".wav"):  # Example: process only .wav files
+#         file_path = os.path.join(audio_file_dir, filename)
+#         print('processing ',filename)
+
+#         start_time = time.time()
+        
+#         features = process_audio_file(file_path,
+#                        freq_min, freq_max,
+#                        w_df, w_df_shift,
+#                        w_dt, w_dt_shift,
+#                        n_fft, n_fft_shift
+#                     )
+
+#         features_all_files = features_all_files + features
+
+#         execution_time = time.time() - start_time
+        
+#         print(f"Execution time: {execution_time:.2f} seconds \n")
 
 # %%
 # convert to numpy array
@@ -255,7 +344,7 @@ from sklearn.manifold import TSNE
 
 # %%
 # Perform KMeans clustering
-kmeans = KMeans(n_clusters=15, random_state=0).fit(features_all_files_normalized)
+kmeans = KMeans(n_clusters=20, random_state=0).fit(features_all_files)
 labels = kmeans.labels_
 
 # %% [markdown]
@@ -264,7 +353,7 @@ labels = kmeans.labels_
 # %%
 import seaborn as sns
 
-n_pca_components = 6
+n_pca_components = 8
 
 # Assuming features_all_files and labels are already defined
 pca = PCA(n_components=n_pca_components)
@@ -279,7 +368,19 @@ df['Cluster'] = labels
 # Plot pairwise relationships in the DataFrame
 sns.pairplot(df, hue='Cluster', palette='Set1', diag_kind='kde', plot_kws={'alpha': 0.6, 's': 5}, height=2)
 
+
 plt.savefig(plot_dir+'pairplot.png')
+plt.show()
+
+
+# %%
+# Plot cumulative explained variance
+plt.figure(figsize=(10, 5))
+plt.plot(range(1, n_pca_components + 1), np.cumsum(pca.explained_variance_ratio_), marker='o', linestyle='--')
+plt.title('Cumulative Explained Variance')
+plt.xlabel('Number of Principal Components')
+plt.ylabel('Cumulative Explained Variance')
+plt.grid()
 plt.show()
 
 
