@@ -23,10 +23,15 @@ import librosa.display
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+import plotly.express as px
+from datetime import datetime
+
 
 # %%
-import tensorflow as tf
-
+# import tensorflow as tf
 
 # %%
 def get_windows(val_min, val_max, window_width, window_shift):
@@ -267,21 +272,21 @@ n_fft_shift = 256 # number of sampling points by which fft sub-samples are shift
 
 freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
 
-# audio_file_dir = '/python/data/'
-audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary/'
+audio_file_dir = '/python/data/'
+# audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary/'
 plot_dir = '/python/plots/'
 
+feature_dir = '/python/features/'
+
 max_files = 5
+
+n_clusters_kmeans = 10
 
 # %% [markdown]
 # # get features from all wav files in directory
 
 # %%
 features_all_files = process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift)
-
-# %%
-#
-
 
 # %% [markdown]
 # ### make sure there is no invalid window processing going on 
@@ -383,14 +388,11 @@ plt.show()
 # ### clustering and pca
 
 # %%
-import numpy as np
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-import plotly.express as px
-
 # Perform KMeans clustering
-kmeans = KMeans(n_clusters=17, random_state=0).fit(all_features)
+
+n_clusters_kmeans = 10
+
+kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(all_features)
 labels = kmeans.labels_
 
 n_pca_components = 8
@@ -446,7 +448,9 @@ import os
 frequency_window = (3000, 7000)  # Adjust the frequency window as needed
 time_window = (12, 12.5) # Convert the time window to sample indices
 # Load the audio file
-filename = 'SM4XPRIZE_20240409_194702.wav'
+# filename = 'SM4XPRIZE_20240409_194702.wav'
+filename = os.listdir(audio_file_dir)[0]
+
 audio_file_path = os.path.join(audio_file_dir, filename)
 y, sr = librosa.load(audio_file_path, sr=None)
 
@@ -480,6 +484,9 @@ Audio(y_segment, rate=sr)
 
 
 # %%
+from scipy.signal import butter,filtfilt
+
+# %%
 # Apply the band-pass filter to isolate the frequency window
 
 y_filtered = bandpass_filter(y_segment, frequency_window[0], frequency_window[1], sr)
@@ -491,4 +498,54 @@ y_filtered = np.nan_to_num(y_filtered, nan=0.0, posinf=0.0, neginf=0.0)
 print("Playing filtered segment:")
 Audio(y_filtered, rate=sr)
 
+# %% [markdown]
+# # write features values into output file
+
 # %%
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = feature_dir + f'sound_features_pca_{timestamp}.csv'
+df_pca.to_csv(filename)
+
+# %%
+df_pca
+
+# %%
+
+# %% [markdown]
+# # get cluster centers
+
+# %%
+# Identify PCA columns
+pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
+
+# Compute the mean of all PCA columns for each cluster
+mean_pca_values_by_cluster = df_pca.groupby('Cluster')[pca_columns].mean()
+
+# %%
+cols = ['PCA_1','PCA_2']
+
+plt.scatter(df_pca[cols[0]], df_pca[cols[1]], c=df_pca['Cluster'],cmap='jet')
+plt.scatter(mean_pca_values_by_cluster[cols[0]], mean_pca_values_by_cluster[cols[1]], c='k',marker='x',s=100)
+
+plt.xlabel(cols[0])
+plt.ylabel(cols[1])
+
+
+# %%
+def generate_filename(method='kmeans', n_clusters=None):
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if method.lower() == 'kmeans' and n_clusters is not None:
+        filename = f'cluster_centers_{method}_Nclust{n_clusters}_{timestamp}.csv'
+    else:
+        filename = f'mean_pca_values_{method}_{timestamp}.csv'
+    return filename
+
+
+
+# %%
+# Generate a meaningful filename
+filename = feature_dir + generate_filename('kmeans',n_clusters_kmeans)
+
+# Write the mean PCA values by cluster to a CSV file
+mean_pca_values_by_cluster.to_csv(filename)
