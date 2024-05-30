@@ -292,6 +292,15 @@ def plot_cluster_vs_absolute_time(df_pca):
     plt.ylabel('Cluster')
     plt.title('Cluster vs Absolute time')
     plt.show()
+    
+    #plot each cluster histogram, each in a subplot, keep the same x-axis
+    for cluster in np.unique(clusters):
+        plt.figure()
+        plt.hist(absolute_times[clusters == cluster], range=(0, np.max(absolute_times)), bins=20)
+        plt.xlabel('Absolute time [hours]')
+        plt.ylabel('Frequency')
+        plt.title(f'Cluster {cluster} vs Absolute time')
+        plt.show()
 
 
 # %% [markdown]
