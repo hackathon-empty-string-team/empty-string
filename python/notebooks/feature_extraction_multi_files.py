@@ -249,6 +249,51 @@ def count_none_frequency_windows(features_all_files):
     return len(none_counts), none_counts
 
 
+def plot_cluster_vs_absolute_time(df_pca):
+    filenames = df_pca["filename"].to_numpy()
+    time_windows = df_pca["time_window"].to_numpy()
+    clusters = df_pca["Cluster"].to_numpy()
+
+    absolute_times = []
+    for filename, time_window in zip(filenames, time_windows):
+        time_ymd = filename.split('_')[1]
+        time_ymd = time_ymd.split('.')[0]
+        time_hms = filename.split('_')[2]
+        time_hms = time_hms.split('.')[0]
+        # transform time_str to absolute time in seconds
+        time_str = f'{time_ymd}{time_hms}'
+        time_sec = 0
+        time_sec = int(time_str[-2:])  # seconds
+        time_sec += time_window[0]  # beginning of time window
+        time_str = time_str[:-2]
+        time_sec += int(time_str[-2:]) * 60  # minutes
+        time_str = time_str[:-2]
+        time_sec += int(time_str[-2:]) * 60 * 60  # hours
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24  # days
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24 * 30  # months
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24 * 30 * 365  # years
+        absolute_times.append(time_sec)
+
+    absolute_times = np.array(absolute_times)
+
+    # substraction of the first time to have time in seconds from the beginning of the recording
+    absolute_times -= np.min(absolute_times)
+
+    # transform absolute time to hours
+    absolute_times /= 3600
+
+    # plot cluster vs absolute time
+    plt.figure()
+    plt.scatter(absolute_times, clusters)
+    plt.xlabel('Absolute time [hours]')
+    plt.ylabel('Cluster')
+    plt.title('Cluster vs Absolute time')
+    plt.show()
+
+
 # %% [markdown]
 # # config
 
@@ -492,3 +537,6 @@ print("Playing filtered segment:")
 Audio(y_filtered, rate=sr)
 
 # %%
+
+# plot cluster vs time (in hours)
+plot_cluster_vs_absolute_time(df_pca)
