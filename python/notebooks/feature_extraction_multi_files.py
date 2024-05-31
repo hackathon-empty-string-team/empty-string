@@ -423,58 +423,34 @@ import numpy as np
 from IPython.display import Audio
 import os
 
-frequency_window = (3000, 7000)  # Adjust the frequency window as needed
-time_window = (12, 12.5) # Convert the time window to sample indices
+time_window = (50.5, 51.0) # Convert the time window to sample indices
 # Load the audio file
-# filename = 'SM4XPRIZE_20240409_194702.wav'
-filename = os.listdir(audio_file_dir)[0]
+#filename = 'SM4XPRIZE_20240410_114402.wav' # use this to specify a file that you want to check from the clustering (hover over the plot above)
+filename = os.listdir(audio_file_dir)[0] # use this if you just want the first file in the directory
 
+
+
+# %%
 audio_file_path = os.path.join(audio_file_dir, filename)
 y, sr = librosa.load(audio_file_path, sr=None)
 
+# Convert the time window to sample indices
 start_sample = int(time_window[0] * sr)
 end_sample = int(time_window[1] * sr)
 
 # Extract the corresponding segment from the audio file
 y_segment = y[start_sample:end_sample]
 
-# Function to define a bandpass filter
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyquist = 0.5 * fs
-    low = lowcut / nyquist
-    high = highcut / nyquist
-    b, a = butter(order, [low, high], btype='band')
-    return b, a
-
-# Function to apply the bandpass filter
-def bandpass_filter(data, lowcut, highcut, fs, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = filtfilt(b, a, data)
-    return y
-
-
+# Debugging: Check the extracted segment
+print("Extracted audio segment:")
+print(y_segment)
 
 # %%
 # Check if you can play the original segment
-print("Playing original segment:")
+print("Playing segment:")
 Audio(y_segment, rate=sr)
 
 
-
-# %%
-from scipy.signal import butter,filtfilt
-
-# %%
-# Apply the band-pass filter to isolate the frequency window
-
-y_filtered = bandpass_filter(y_segment, frequency_window[0], frequency_window[1], sr)
-
-# Clean the filtered data to remove NaN or infinite values
-y_filtered = np.nan_to_num(y_filtered, nan=0.0, posinf=0.0, neginf=0.0)
-
-# Check if you can play the filtered segment
-print("Playing filtered segment:")
-Audio(y_filtered, rate=sr)
 
 # %% [markdown]
 # # write features values into output file
