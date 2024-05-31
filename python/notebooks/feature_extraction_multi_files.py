@@ -303,7 +303,6 @@ print("Files with None frequency_windows:", none_files)
 # Initialize empty lists to collect all feature values and corresponding metadata
 all_features = []
 all_time_windows = []
-all_frequency_windows = []
 all_filenames = []
 
 # Loop through the list of dictionaries and collect feature values and metadata
@@ -311,40 +310,21 @@ for file_data in features_all_files:
     filename = file_data["filename"]
     features = file_data["features"]
     time_windows = file_data["time_windows"]
-    frequency_windows = file_data["frequency_windows"]
-
-    # Ensure frequency_windows repeats to match the length of features
-    if frequency_windows and len(frequency_windows) < len(features):
-        repeat_count = len(features) // len(frequency_windows) + 1
-        frequency_windows = (frequency_windows * repeat_count)[:len(features)]
 
     for i, feature_array in enumerate(features):
         all_features.append(feature_array)  # Collect feature arrays
         all_time_windows.append(time_windows[i] if i < len(time_windows) else None)
-        all_frequency_windows.append(frequency_windows[i] if i < len(frequency_windows) else None)
         all_filenames.append(filename)
 
 # Convert the list of feature arrays into a single numpy array
 all_features = np.vstack(all_features)
 
 # Convert the numpy array to a pandas DataFrame
-df_features = pd.DataFrame(all_features)
-
-# Convert the numpy array to a pandas DataFrame
 df_features = pd.DataFrame(all_features, columns=[f'var_{i+1}' for i in range(len(all_features[0]))])
 
-# Add the time windows, frequency windows, and filenames to the DataFrame
+# Add the time windows and filenames to the DataFrame
 df_features['time_window'] = all_time_windows
-df_features['frequency_window'] = all_frequency_windows
 df_features['filename'] = all_filenames
-
-# Debugging: Check the DataFrame for None frequency_windows
-print("Frequency windows in DataFrame:")
-print(df_features['frequency_window'])
-
-# Count the number of None frequency_windows
-none_count = df_features['frequency_window'].isna().sum()
-print(f"Number of None frequency_windows: {none_count}")
 
 # %%
 df_features.info()
@@ -406,7 +386,6 @@ df_pca = pd.DataFrame(features_pca, columns=[f'PCA_{i+1}' for i in range(n_pca_c
 
 # Add the time windows, frequency windows, filenames, and cluster labels to the DataFrame
 df_pca['time_window'] = all_time_windows
-df_pca['frequency_window'] = all_frequency_windows
 df_pca['filename'] = all_filenames
 df_pca['Cluster'] = labels
 
@@ -419,7 +398,6 @@ fig = px.scatter_matrix(
     hover_data={
         'filename': True,
         'time_window': True,
-        'frequency_window': True,
     },
     title='Pairwise Plot of PCA Components'
 )
