@@ -281,6 +281,7 @@ feature_dir = '/python/features/'
 max_files = 5
 
 n_clusters_kmeans = 10
+n_pca_components = 8
 
 # %% [markdown]
 # # get features from all wav files in directory
@@ -369,13 +370,8 @@ plt.show()
 
 # %%
 # Perform KMeans clustering
-
-n_clusters_kmeans = 10
-
 kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(all_features)
 labels = kmeans.labels_
-
-n_pca_components = 8
 
 # Apply PCA on the features
 pca = PCA(n_components=n_pca_components)
