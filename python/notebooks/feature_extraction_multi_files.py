@@ -23,10 +23,15 @@ import librosa.display
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+import plotly.express as px
+from datetime import datetime
+
 
 # %%
-import tensorflow as tf
-
+# import tensorflow as tf
 
 # %%
 def get_windows(val_min, val_max, window_width, window_shift):
@@ -321,21 +326,22 @@ n_fft_shift = 256 # number of sampling points by which fft sub-samples are shift
 
 freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
 
-# audio_file_dir = '/python/data/'
-audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary/'
+audio_file_dir = '/python/data/'
+# audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary/'
 plot_dir = '/python/plots/'
 
+feature_dir = '/python/features/'
+
 max_files = 5
+
+n_clusters_kmeans = 10
+n_pca_components = 8
 
 # %% [markdown]
 # # get features from all wav files in directory
 
 # %%
 features_all_files = process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift)
-
-# %%
-#
-
 
 # %% [markdown]
 # ### make sure there is no invalid window processing going on 
@@ -352,7 +358,6 @@ print("Files with None frequency_windows:", none_files)
 # Initialize empty lists to collect all feature values and corresponding metadata
 all_features = []
 all_time_windows = []
-all_frequency_windows = []
 all_filenames = []
 
 # Loop through the list of dictionaries and collect feature values and metadata
@@ -360,40 +365,21 @@ for file_data in features_all_files:
     filename = file_data["filename"]
     features = file_data["features"]
     time_windows = file_data["time_windows"]
-    frequency_windows = file_data["frequency_windows"]
-
-    # Ensure frequency_windows repeats to match the length of features
-    if frequency_windows and len(frequency_windows) < len(features):
-        repeat_count = len(features) // len(frequency_windows) + 1
-        frequency_windows = (frequency_windows * repeat_count)[:len(features)]
 
     for i, feature_array in enumerate(features):
         all_features.append(feature_array)  # Collect feature arrays
         all_time_windows.append(time_windows[i] if i < len(time_windows) else None)
-        all_frequency_windows.append(frequency_windows[i] if i < len(frequency_windows) else None)
         all_filenames.append(filename)
 
 # Convert the list of feature arrays into a single numpy array
 all_features = np.vstack(all_features)
 
 # Convert the numpy array to a pandas DataFrame
-df_features = pd.DataFrame(all_features)
-
-# Convert the numpy array to a pandas DataFrame
 df_features = pd.DataFrame(all_features, columns=[f'var_{i+1}' for i in range(len(all_features[0]))])
 
-# Add the time windows, frequency windows, and filenames to the DataFrame
+# Add the time windows and filenames to the DataFrame
 df_features['time_window'] = all_time_windows
-df_features['frequency_window'] = all_frequency_windows
 df_features['filename'] = all_filenames
-
-# Debugging: Check the DataFrame for None frequency_windows
-print("Frequency windows in DataFrame:")
-print(df_features['frequency_window'])
-
-# Count the number of None frequency_windows
-none_count = df_features['frequency_window'].isna().sum()
-print(f"Number of None frequency_windows: {none_count}")
 
 # %%
 df_features.info()
@@ -437,17 +423,9 @@ plt.show()
 # ### clustering and pca
 
 # %%
-import numpy as np
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-import plotly.express as px
-
 # Perform KMeans clustering
-kmeans = KMeans(n_clusters=17, random_state=0).fit(all_features)
+kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(all_features)
 labels = kmeans.labels_
-
-n_pca_components = 8
 
 # Apply PCA on the features
 pca = PCA(n_components=n_pca_components)
@@ -458,7 +436,6 @@ df_pca = pd.DataFrame(features_pca, columns=[f'PCA_{i+1}' for i in range(n_pca_c
 
 # Add the time windows, frequency windows, filenames, and cluster labels to the DataFrame
 df_pca['time_window'] = all_time_windows
-df_pca['frequency_window'] = all_frequency_windows
 df_pca['filename'] = all_filenames
 df_pca['Cluster'] = labels
 
@@ -471,7 +448,6 @@ fig = px.scatter_matrix(
     hover_data={
         'filename': True,
         'time_window': True,
-        'frequency_window': True,
     },
     title='Pairwise Plot of PCA Components'
 )
@@ -497,55 +473,83 @@ import numpy as np
 from IPython.display import Audio
 import os
 
-frequency_window = (3000, 7000)  # Adjust the frequency window as needed
-time_window = (12, 12.5) # Convert the time window to sample indices
+time_window = (50.5, 51.0) # Convert the time window to sample indices
 # Load the audio file
-filename = 'SM4XPRIZE_20240409_194702.wav'
+#filename = 'SM4XPRIZE_20240410_114402.wav' # use this to specify a file that you want to check from the clustering (hover over the plot above)
+filename = os.listdir(audio_file_dir)[0] # use this if you just want the first file in the directory
+
+
+
+# %%
 audio_file_path = os.path.join(audio_file_dir, filename)
 y, sr = librosa.load(audio_file_path, sr=None)
 
+# Convert the time window to sample indices
 start_sample = int(time_window[0] * sr)
 end_sample = int(time_window[1] * sr)
 
 # Extract the corresponding segment from the audio file
 y_segment = y[start_sample:end_sample]
 
-# Function to define a bandpass filter
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyquist = 0.5 * fs
-    low = lowcut / nyquist
-    high = highcut / nyquist
-    b, a = butter(order, [low, high], btype='band')
-    return b, a
-
-# Function to apply the bandpass filter
-def bandpass_filter(data, lowcut, highcut, fs, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = filtfilt(b, a, data)
-    return y
-
-
+# Debugging: Check the extracted segment
+print("Extracted audio segment:")
+print(y_segment)
 
 # %%
 # Check if you can play the original segment
-print("Playing original segment:")
+print("Playing segment:")
 Audio(y_segment, rate=sr)
 
 
 
+# %% [markdown]
+# # write features values into output file
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = feature_dir + f'sound_features_pca_{timestamp}.csv'
+df_pca.to_csv(filename)
+
+
+
+# %% [markdown]
+# # get cluster centers
+
 # %%
-# Apply the band-pass filter to isolate the frequency window
+# Identify PCA columns
+pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
 
-y_filtered = bandpass_filter(y_segment, frequency_window[0], frequency_window[1], sr)
-
-# Clean the filtered data to remove NaN or infinite values
-y_filtered = np.nan_to_num(y_filtered, nan=0.0, posinf=0.0, neginf=0.0)
-
-# Check if you can play the filtered segment
-print("Playing filtered segment:")
-Audio(y_filtered, rate=sr)
+# Compute the mean of all PCA columns for each cluster
+mean_pca_values_by_cluster = df_pca.groupby('Cluster')[pca_columns].mean()
 
 # %%
+cols = ['PCA_1','PCA_2']
 
-# plot cluster vs time (in hours)
-plot_cluster_vs_absolute_time(df_pca)
+plt.scatter(df_pca[cols[0]], df_pca[cols[1]], c=df_pca['Cluster'],cmap='jet')
+plt.scatter(mean_pca_values_by_cluster[cols[0]], mean_pca_values_by_cluster[cols[1]], c='k',marker='x',s=100)
+
+plt.xlabel(cols[0])
+plt.ylabel(cols[1])
+
+
+# %%
+def generate_filename(method='kmeans', n_clusters=None):
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if method.lower() == 'kmeans' and n_clusters is not None:
+        filename = f'cluster_centers_{method}_Nclust{n_clusters}_{timestamp}.csv'
+    else:
+        filename = f'mean_pca_values_{method}_{timestamp}.csv'
+    return filename
+
+
+
+# %%
+# Generate a meaningful filename
+filename = feature_dir + generate_filename('kmeans',n_clusters_kmeans)
+
+# Write the mean PCA values by cluster to a CSV file
+mean_pca_values_by_cluster.to_csv(filename)
+
+
+# plot cluster vs time (in hours), only works if filename is written as name_yyyymmdd_hhmmss.wav
+#plot_cluster_vs_absolute_time(df_pca)
