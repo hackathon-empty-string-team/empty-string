@@ -438,7 +438,7 @@ def extractFeaturesFromFolder(audio_dir_pth, feature_dir, w_dt, w_dt_shift, w_df
 
 
 # %%
-def getClustering(n_clusters_kmeans, n_pca_components, raw_features):
+def getClustering(n_clusters_kmeans, n_pca_components, raw_features, df_features):
 
     # Perform KMeans clustering
     kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(raw_features)
@@ -522,7 +522,7 @@ df_features, raw_features, correlation_matrix = extractFeaturesFromFolder(audio_
 t1 = time.time() - t0
 
 # %%
-df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, raw_features)
+df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, raw_features, df_features)
 
 # %%
 saveFeatures_Comp(feature_dir_comp, single_audio_features)
