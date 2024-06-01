@@ -145,7 +145,9 @@ def get_features(spec_db, times, time_windows, frequencies, frequency_windows):
             # Extract the subsample based on the masks
             subsample = spec_db[f_mask][:, t_mask]
 
-            
+            #normalize the subsample with the absolute maximum value
+            subsample = subsample / np.max(np.abs(subsample))
+
             #print(subsample.shape)
         
             output_vector_np = apply_conv2d(subsample)
@@ -212,7 +214,7 @@ def process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w
     # Loop over filenames in the directory
     for filename in os.listdir(audio_file_dir):
         
-        if filename.lower().endswith(".wav") and file_count < max_files:  # Process only .wav files and limit to max_files
+        if (filename.lower().endswith(".wav") or filename.lower().endswith(".mp3")) and file_count < max_files:  # Process only .wav files and limit to max_files
             file_path = os.path.join(audio_file_dir, filename)
             #('processing ', filename)
 
