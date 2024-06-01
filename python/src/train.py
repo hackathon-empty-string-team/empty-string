@@ -6,9 +6,10 @@ import torch.optim as optim
 from SmallVGGish import SmallerVGGishAutoencoder
 from VGGish import VGGishAutoencoder
 from AudioDataset import OverlappingAudioDataset, NonOverlappingAudioDataset
+from custom_collate import custom_collate_fn
 
 def train_model(model, dataloader, num_epochs=1, learning_rate=1e-3):
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     criterion = nn.MSELoss().to(device)  # Move criterion to device
 
     model.train()
@@ -36,9 +37,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 # select which type of audio dataset you want, either overlapping or not
-dataset = OverlappingAudioDataset(root_dir='/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary')
-# dataset = OverlappingAudioDataset(root_dir='/python/data') # run this only if you have enough compute to load the whole data directory
-dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+# dataset = OverlappingAudioDataset(root_dir='/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary')
+dataset = OverlappingAudioDataset(root_dir='/python/data') # run this only if you have enough compute to load the whole data directory
+dataloader = DataLoader(dataset, batch_size=4, collate_fn=custom_collate_fn, shuffle=True)
 
 
 train_model(model, dataloader, num_epochs=5)
