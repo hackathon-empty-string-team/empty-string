@@ -23,8 +23,14 @@ import gradio as gr
 import os
 import pandas as pd
 import numpy as np
-from datetime import datetime
-from notebooks.extraction import extractFeaturesFromFile, extractFeaturesFromFolder, getClustering, saveFeatures_Comp, saveFeatures_Clustering 
+
+import time
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+
+from notebooks.extraction import extractFeaturesFromFile, extractFeaturesFromFolder, saveFeatures_Comp, saveFeatures_Clustering
+from notebooks.extraction import getClustering
 
 # %%
 # time sampling parameters
@@ -45,10 +51,10 @@ n_clusters_kmeans = 10
 n_pca_components = 8
 
 # Two feature directories, one for the clustering features and one for the comparison features
-feature_dir_cl = "../data/features_cluster"
-feature_dir_comp = "../data/features_comp"
-audio_dir_pth = "../data/audio_files"
-audio_pth = "../data/audio_files/20231106_143000.WAV"
+feature_dir_cl = "data/features_cluster"
+feature_dir_comp = "data/features_comp"
+audio_dir_pth = "data/audio_files"
+audio_pth = "data/audio_files/20231106_143000.WAV"
 
 name = "my-cluster-1"
 
@@ -59,7 +65,7 @@ df_features, raw_features, correlation_matrix = extractFeaturesFromFolder(audio_
 t1 = time.time() - t0
 
 # %%
-df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, raw_features)
+df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, df_features, raw_features)
 
 # %%
 saveFeatures_Comp(feature_dir_comp, single_audio_features)

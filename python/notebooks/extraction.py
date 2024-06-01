@@ -12,7 +12,7 @@
 #     name: python3
 # ---
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Imports
 
 # %%
@@ -33,7 +33,7 @@ import plotly.express as px
 from datetime import datetime
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Helper Functions
 
 # %%
@@ -436,7 +436,7 @@ def extractFeaturesFromFolder(audio_dir_pth, feature_dir, w_dt, w_dt_shift, w_df
 
 
 # %%
-def getClustering(n_clusters_kmeans, n_pca_components, raw_features):
+def getClustering(n_clusters_kmeans, n_pca_components, df_features, raw_features):
 
     # Perform KMeans clustering
     kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(raw_features)
