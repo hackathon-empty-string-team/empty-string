@@ -139,13 +139,24 @@ class NonOverlappingAudioDataset(Dataset):
         total_frames = log_mel_spectrogram.shape[1]
         num_examples = (total_frames - num_frames_per_example) // hop_length + 1
 
-        # Initialize the tensor to hold the examples
-        examples = np.zeros((num_examples, self.n_mels, num_frames_per_example))
+        # Initialize the list to hold the examples
+        examples = []
 
         for i in range(num_examples):
             start_idx = i * hop_length
             end_idx = start_idx + num_frames_per_example
-            examples[i] = log_mel_spectrogram[:, start_idx:end_idx]
+            # Only include the example if it fits within the bounds of the spectrogram
+            if end_idx <= log_mel_spectrogram.shape[1]:
+                example = log_mel_spectrogram[:, start_idx:end_idx]
+                examples.append(example)
 
+        # If no valid examples are found, return None
+        if len(examples) == 0:
+            return None
+
+        # Convert the list of numpy arrays to a single numpy array before converting to a tensor
+        examples = np.array(examples)
+
+        # Convert the numpy array to a PyTorch tensor and add a channel dimension
         log_mel_examples = torch.tensor(examples).float().unsqueeze(1)  # Add channel dimension
         return log_mel_examples
