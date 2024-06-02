@@ -15,7 +15,7 @@ license: apache-2.0
 - [Welcome and minimal Setup](./docs/welcome-and-minimal-setup.md)
 
 ## Current approaches
-1. simple feature extractor with convolutions
+1. [simple feature extractor with convolutions](./docs/simple-feature-extractor.md)
 2. [encoder decoder approach](./docs/encoder-decoder.md)
 3. inference on labeled data
 
