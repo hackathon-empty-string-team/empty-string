@@ -161,12 +161,20 @@ def compareAudio(file, clustering_name):
     
     df_file_pca = pd.DataFrame(pca_file_features, columns=['PCA1', 'PCA2'])
     df_file_pca['time_windows'] = file_features['time_windows']
+    df_file_pca['hover_text'] = df_file_pca['time_windows'].apply(lambda x: f"Time Interval: [{x[0]}, {x[1]}]")
     
     # Create Plotly scatter plot for clustered data
     fig = px.scatter(df_pca, x='PCA_1', y='PCA_2', color='Cluster', title='PCA Plot of Audio Features')
     
     # Add black points for the comparison audio file
-    fig.add_scatter(x=df_file_pca['PCA1'], y=df_file_pca['PCA2'], mode='markers', marker=dict(color='black'), name='New Audio Features', text=df_file_pca['time_windows'])
+    fig.add_scatter(
+        x=df_file_pca['PCA1'],
+        y=df_file_pca['PCA2'],
+        mode='markers',
+        marker=dict(color='black', symbol='square', size=8),  # Use 'square' symbol and set size
+        name='New Audio Features',
+        text=df_file_pca['hover_text']  # Custom hover text
+    )
 
     # =====================
     # CLOSEST CLUSTER PLOTS
