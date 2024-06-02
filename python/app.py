@@ -175,7 +175,7 @@ def compareAudio(file, clustering_name):
     # Calculate the closest clusters
     pca_columns = [col for col in df_file_pca.columns if col.startswith('PCA')]
     pca_means_columns = [col for col in df_means.columns if col.startswith('PCA')]
-    distances = cdist(df_file_pca[pca_columns], df_means[pca_means_columns], metric='euclidean')
+    distances = cdist(df_file_pca[pca_columns], df_means[pca_means_columns[:2]], metric='euclidean')
     closest_cluster = np.argmin(distances, axis=1)
 
     df_file_pca['closest_cluster'] = closest_cluster
@@ -224,7 +224,13 @@ with gr.Blocks() as demo:
         if not os.path.exists(feature_dir_cl):
             os.makedirs(feature_dir_cl)
         clustering_name = gr.Dropdown(choices=listClusterings(feature_dir_cl), label="Clustering")
+        refresh_button = gr.Button("Refresh")
         compare_button = gr.Button("Compare")
+
+        def refresh_clusterings():
+            return gr.Dropdown(choices=listClusterings(feature_dir_cl), interactive=True)
+        
+        refresh_button.click(refresh_clusterings, outputs=clustering_name)
 
     
     with gr.Tab("Results"):
