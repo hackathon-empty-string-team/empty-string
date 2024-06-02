@@ -61,7 +61,7 @@ def getClusteringHyperparams(clustering_name):
 
 
 # %%
-def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components):
+def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components, max_files):
     hyp = Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
     t0 = time.time()
     unzipped_folder_path = 'data/unzipped_folder'
@@ -95,10 +95,15 @@ def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_
     with zipfile.ZipFile(zipped_folder.name, 'r') as zip_ref:
         zip_ref.extractall(temp_extract_path)
 
-    # Move each file from the extracted folder to the unzipped folder path
+    # Move each file from the extracted folder to the unzipped folder path up to max_files
+    count = 0
     for root, dirs, files in os.walk(temp_extract_path):
         for file in files:
-            shutil.move(os.path.join(root, file), unzipped_folder_path)
+            if count < max_files:
+                shutil.move(os.path.join(root, file), unzipped_folder_path)
+                count += 1
+            else:
+                break
     
     # Remove the temp extracted folder
     shutil.rmtree(temp_extract_path)
@@ -202,18 +207,18 @@ with gr.Blocks() as demo:
         n_fft_shift = gr.Slider(2, 256, value=128, label="n_fft_shift", step=2)
         n_clusters_kmeans = gr.Slider(1, 10, value=5, label="n_clusters_kmeans", step=1)
         n_pca_components = gr.Slider(1, 10, value=3, label="n_pca_components", step=1)
+        max_files = gr.Slider(0, 50, value=20, label="max_files", step=1)
         
         run_button = gr.Button("Run!")
         output_text = gr.Textbox(label="Output")
 
         # Link the button click event to the runNewClustering function
-        run_button.click(runNewClustering, inputs=[name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components], outputs=output_text)
+        run_button.click(runNewClustering, inputs=[name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components, max_files], outputs=output_text)
     
     with gr.Tab("Compare your Audio..."):
         gr.Markdown("### Compare your Audio...")
         file = gr.File(label="Upload your file", file_types=['audio'])
         clustering_name = gr.Dropdown(choices=listClusterings(feature_dir_cl), label="Clustering")
-        #M = gr.Slider(1, 10, label="Number of Closest Clusters (M)")
         compare_button = gr.Button("Compare")
 
     
@@ -226,7 +231,3 @@ with gr.Blocks() as demo:
     compare_button.click(compareAudio, inputs=[file, clustering_name], outputs=[pca_plot, cluster_plot])
 
 demo.launch(share=True)
-
-# %%
-
-# %%

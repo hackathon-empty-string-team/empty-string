@@ -331,7 +331,7 @@ class Hyperparams():
         self.n_pca_components = n_pca_components
         self.freq_min = 0
         self.freq_max = 40000
-        self.max_files = 3
+        self.max_files = 26
 
 
 # %% [markdown]
@@ -358,7 +358,6 @@ plot_dir = '/python/plots/'
 
 feature_dir = '/python/features/'
 
-max_files = 25
 
 n_clusters_kmeans = 10
 n_pca_components = 8
@@ -394,7 +393,6 @@ def extractFeaturesFromFile(audio_pth, feature_dir, hyp):
 # %%
 def extractFeaturesFromFolder(audio_dir_pth, feature_dir, hyp):
 
-    max_files = 26
     features_all_files = process_multiple_audiofiles(audio_dir_pth, hyp)
 
     # Initialize empty lists to collect all feature values and corresponding metadata
@@ -475,7 +473,7 @@ def getClustering(n_clusters_kmeans, n_pca_components, df_features, raw_features
 # %%
 class Hyperparams():
 
-    def __init__(self, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components):
+    def __init__(self, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components, max_files=26):
         self.w_dt = w_dt
         self.w_dt_shift = w_dt_shift
         self.w_df = w_df
@@ -486,7 +484,7 @@ class Hyperparams():
         self.n_pca_components = n_pca_components
         self.freq_min = 0
         self.freq_max = 40000
-        self.max_files = 3
+        self.max_files = max_files
 
 
 def hyperparamsToDict(hyp):
