@@ -12,6 +12,8 @@ license: apache-2.0
 
 # Brainforest EcoHackathon 2024, Group "" (pronounced empty string)
 
+## Overview
+
 - [Checkout our demo](https://huggingface.co/spaces/hackathon-empty-string-team/empty-string)
 - [Welcome and minimal Setup](./docs/welcome-and-minimal-setup.md)
 
