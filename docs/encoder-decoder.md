@@ -1,5 +1,6 @@
 ## Current standings
 
+- no models trained at this point
 - for implementation details check the code
 
 
