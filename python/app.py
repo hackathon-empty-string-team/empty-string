@@ -195,13 +195,6 @@ def compareAudio(file, clustering_name):
     cluster_counts = df_file_pca['closest_cluster'].value_counts().reset_index()
     cluster_counts.columns = ['cluster', 'count']
     bar_fig = px.bar(cluster_counts, x='cluster', y='count', title='Distribution of Closest Clusters')
-    bar_fig.update_layout(
-        yaxis_range=[0, cluster_counts['count'].max() + 10],  # Ensure y-axis starts at 0
-        xaxis_title='Cluster Number',  # Custom x-axis title
-        yaxis_title='Number of Features',  # Custom y-axis title
-        width=500,  # Set fixed width
-        height=400  # Set fixed height
-    )
     
     return fig, bar_fig
 
