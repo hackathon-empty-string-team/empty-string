@@ -20,7 +20,7 @@ license: apache-2.0
 ## Current approaches
 1. [simple feature extractor with convolutions](./docs/simple-feature-extractor.md)
 2. [encoder decoder approach](./docs/encoder-decoder.md)
-3. inference on labeled data
+3. ~~inference on labeled data~~ (discontinued until further notice due to low accuracy)
 
 
 ## Awesome Data Overview
