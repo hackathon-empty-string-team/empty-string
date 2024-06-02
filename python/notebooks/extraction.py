@@ -513,7 +513,7 @@ def dictToHyperparams(hyp_dict):
     n_clusters_kmeans = hyp_dict["n_clusters_kmeans"][0]
     n_pca_components = hyp_dict["n_pca_components"][0]
 
-    #print(n_fft_shift)
+    print(n_fft_shift)
 
     return Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
 
