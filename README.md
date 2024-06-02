@@ -16,6 +16,7 @@ license: apache-2.0
 
 - [Checkout our demo](https://huggingface.co/spaces/hackathon-empty-string-team/empty-string)
 - [Welcome and minimal Setup](./docs/welcome-and-minimal-setup.md)
+- [Scope and problem statement](./docs/scope-and-problem-statement.md)
 
 ## Current approaches
 1. [simple feature extractor with convolutions](./docs/simple-feature-extractor.md)
@@ -23,7 +24,7 @@ license: apache-2.0
 3. ~~inference on labeled data~~ (discontinued until further notice due to low accuracy)
 
 
-## Awesome Data Overview
+## Awesome Data Sketch
 
 - The provided data for this hackathon is huge
 - In our project, we were working with sound data
