@@ -61,6 +61,11 @@ def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_
     hyp = Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
     t0 = time.time()
     unzipped_folder_path = 'data/unzipped_folder'
+
+    # Ensure the unzipped folder path exists
+    if not os.path.exists(unzipped_folder_path):
+        os.makedirs(unzipped_folder_path)
+    
     # Clear the unzipped folder path
     for filename in os.listdir(unzipped_folder_path):
         file_path = os.path.join(unzipped_folder_path, filename)
@@ -116,14 +121,14 @@ with gr.Blocks() as demo:
         zipped_folder = gr.File(label="Upload your zipped folder", file_types=['file'])
         
         # Define hyperparameter sliders
-        w_dt = gr.Slider(0.25, 1.0, label="w_dt", step = 0.25)
-        w_dt_shift = gr.Slider(0.25, 1.0, label="w_dt_shift", step = 0.25)
-        w_df = gr.Slider(2000, 10000, label="w_df", step = 250)
-        w_df_shift = gr.Slider(2000, 10000, label="w_df_shift", step = 250)
-        n_fft = gr.Slider(2, 256, label="n_fft", step=2)
-        n_fft_shift = gr.Slider(2, 256, label="n_fft_shift", step=2)
-        n_clusters_kmeans = gr.Slider(1, 10, label="n_clusters_kmeans", step=1)
-        n_pca_components = gr.Slider(1, 10, label="n_pca_components", step=1)
+        w_dt = gr.Slider(0.25, 1.0, value=0.5, label="w_dt", step=0.25)
+        w_dt_shift = gr.Slider(0.25, 1.0, value=0.5, label="w_dt_shift", step=0.25)
+        w_df = gr.Slider(2000, 10000, value=5000, label="w_df", step=250)
+        w_df_shift = gr.Slider(2000, 10000, value=5000, label="w_df_shift", step=250)
+        n_fft = gr.Slider(2, 256, value=128, label="n_fft", step=2)
+        n_fft_shift = gr.Slider(2, 256, value=128, label="n_fft_shift", step=2)
+        n_clusters_kmeans = gr.Slider(1, 10, value=5, label="n_clusters_kmeans", step=1)
+        n_pca_components = gr.Slider(1, 10, value=3, label="n_pca_components", step=1)
         
         run_button = gr.Button("Run!")
         output_text = gr.Textbox(label="Output")
