@@ -31,44 +31,119 @@ import plotly.express as px
 
 from notebooks.extraction import extractFeaturesFromFile, extractFeaturesFromFolder, saveFeatures_Comp, saveFeatures_Clustering
 from notebooks.extraction import getClustering
+from notebooks.extraction import Hyperparams, dictToHyperparams
+
+import zipfile
+import shutil
+
+from scipy.spatial.distance import cdist
+
+# %% [markdown]
+# ## Outline of the necessary functions
 
 # %%
-# time sampling parameters
-w_dt = 0.5 # time window of each sample [sec]
-w_dt_shift = 0.5 # time by which samples are shifted [sec]
-
-# frequency sampling parameters
-w_df = 4000 # ferquency indow of each sample [Hz]
-w_df_shift = 4000 # ferquency by which windows are shifted [Hz]
-
-# fft parameters
-n_fft = 512 # number of sampling points in sub-samples used for fft (sets time resolution of spectra)
-n_fft_shift = 256 # number of sampling points by which fft sub-samples are shifted
-
-freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
-
-n_clusters_kmeans = 10
-n_pca_components = 8
-
-# Two feature directories, one for the clustering features and one for the comparison features
+# GLOBALS
 feature_dir_cl = "data/features_cluster"
 feature_dir_comp = "data/features_comp"
 audio_dir_pth = "data/audio_files"
 audio_pth = "data/audio_files/20231106_143000.WAV"
 
-name = "my-cluster-1"
-
-t0 = time.time()
-
-single_audio_features = extractFeaturesFromFile(audio_pth, feature_dir_comp, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components)
-df_features, raw_features, correlation_matrix = extractFeaturesFromFolder(audio_dir_pth, feature_dir_cl, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components)
-t1 = time.time() - t0
 
 # %%
-df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, df_features, raw_features)
+def getClusteringHyperparams(clustering_name):
+    hyp_file = os.path.join(feature_dir_cl, f"h_{clustering_name}.csv")
+    df_hyp = pd.read_csv(hyp_file)
+    return dictToHyperparams(pd.DataFrame.to_dict(df_hyp))
+
 
 # %%
-saveFeatures_Comp(feature_dir_comp, single_audio_features)
+def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components):
+    hyp = Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
+    t0 = time.time()
+    unzipped_folder_path = 'data/unzipped_folder'
+    # Clear the unzipped folder path
+    for filename in os.listdir(unzipped_folder_path):
+        file_path = os.path.join(unzipped_folder_path, filename)
+        if os.path.isfile(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+    # Unzip the uploaded folder
+    with zipfile.ZipFile(zipped_folder.name, 'r') as zip_ref:
+        zip_ref.extractall(unzipped_folder_path)
+
+    
+    df_features, raw_features, _ = extractFeaturesFromFolder(unzipped_folder_path, feature_dir_cl, hyp)
+    
+    df_pca, mean_pca_values_by_cluster = getClustering(hyp.n_clusters_kmeans, hyp.n_pca_components, df_features, raw_features)
+    
+    saveFeatures_Clustering(feature_dir_cl, name, df_features, df_pca, mean_pca_values_by_cluster, hyp)
+
 
 # %%
-saveFeatures_Clustering(feature_dir_cl, name, df_features, df_pca, mean_pca_values_by_cluster)
+def listClusterings(feature_dir):
+    f_files = [fname[2:-4] for fname in os.listdir(feature_dir) if fname[:2] == "f_"]
+    return f_files
+
+
+# %%
+# Function to compare audio file with clusters
+def compareAudio(file, clustering_name):
+    audio_file_path = file.name
+    hyp = getClusteringHyperparams(clustering_name)
+    file_features = extractFeaturesFromFile(audio_file_path, feature_dir_comp, hyp) # Output: Python.dict
+    
+    means_file = os.path.join(feature_dir_cl, f"m_{clustering_name}.csv")
+    pca_file = os.path.join(feature_dir_cl, f"p_{clustering_name}.csv")
+    
+    df_means = pd.read_csv(means_file)
+    df_pca = pd.read_csv(pca_file)
+    pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
+    
+    distances = cdist(df_pca[pca_columns], df_means[pca_columns], metric='euclidean')
+    closest_cluster = np.argmin(distances, axis=1)
+    return str(closest_cluster)
+
+
+# %%
+
+# Building Gradio Interface
+with gr.Blocks() as demo:
+    with gr.Tab("Run the Clustering!"):
+        gr.Markdown("### Run the Clustering!")
+        name = gr.Textbox(label="Name")
+
+        zipped_folder = gr.File(label="Upload your zipped folder", file_types=['file'])
+        
+        # Define hyperparameter sliders
+        w_dt = gr.Slider(0.25, 1.0, label="w_dt", step = 0.25)
+        w_dt_shift = gr.Slider(0.25, 1.0, label="w_dt_shift", step = 0.25)
+        w_df = gr.Slider(2000, 10000, label="w_df", step = 250)
+        w_df_shift = gr.Slider(2000, 10000, label="w_df_shift", step = 250)
+        n_fft = gr.Slider(2, 256, label="n_fft", step=2)
+        n_fft_shift = gr.Slider(2, 256, label="n_fft_shift", step=2)
+        n_clusters_kmeans = gr.Slider(1, 10, label="n_clusters_kmeans", step=1)
+        n_pca_components = gr.Slider(1, 10, label="n_pca_components", step=1)
+        
+        run_button = gr.Button("Run!")
+        output_text = gr.Textbox(label="Output")
+
+        # Link the button click event to the runNewClustering function
+        run_button.click(runNewClustering, inputs=[name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components], outputs=output_text)
+    
+    with gr.Tab("Compare your Audio..."):
+        gr.Markdown("### Compare your Audio...")
+        file = gr.File(label="Upload your file", file_types=['audio'])
+        clustering_name = gr.Dropdown(choices=listClusterings(feature_dir_cl), label="Clustering")
+        #M = gr.Slider(1, 10, label="Number of Closest Clusters (M)")
+        compare_button = gr.Button("Compare")
+        output_cluster = gr.Textbox(label="Closest Clusters")
+
+        # Link the button click event to the compareAudio function
+        compare_button.click(compareAudio, inputs=[file, clustering_name], outputs=output_cluster)
+    
+    with gr.Tab("Results"):
+        gr.Markdown("### Your audio file was mapped to 5 clusters!")
+        # This tab could display results of the comparison
+
+demo.launch(share=True)

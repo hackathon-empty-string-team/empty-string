@@ -12,7 +12,7 @@
 #     name: python3
 # ---
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Imports
 
 # %%
