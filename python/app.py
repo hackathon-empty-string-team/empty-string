@@ -18,7 +18,7 @@
 # %% [markdown]
 # The other file is a generated skeleton
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # ## Imports
 
 # %%
@@ -171,8 +171,8 @@ def compareAudio(file, clustering_name):
         x=df_file_pca['PCA1'],
         y=df_file_pca['PCA2'],
         mode='markers',
-        marker=dict(color='black', symbol='square', size=8),  # Use 'square' symbol and set size
-        name='New Audio Features',
+        marker=dict(color='black', symbol='square', size=6),  # Use 'square' symbol and set size
+        name='New Features',
         text=df_file_pca['hover_text']  # Custom hover text
     )
 
@@ -252,3 +252,9 @@ with gr.Blocks() as demo:
 
 if __name__ == "__main__":
     demo.launch(share=True)
+
+# %%
+
+# %%
+
+# %%
