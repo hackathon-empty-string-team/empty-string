@@ -1,3 +1,12 @@
+## Current standings
+- Working prototype for our demo
+- Clustering and PCA can be adapted/improved
+
+## Idea 
+- Contrary to the encoder-decoder idea, this approach was aimed to be as simple as possible
+- Though this approach is called "simple", it still uses some DL related computations but to an extent where most things are explainable
+- Aims to find the sweetspot between complexity of data while retaining the possibility to track what happens exactly
+
 ## What happens in the simple feature extractor?
 
 A high level step by step explanation what happens to a single soundfile: 
