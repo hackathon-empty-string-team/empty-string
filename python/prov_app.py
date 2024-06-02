@@ -130,7 +130,6 @@ def plotClustering(clustering_name):
 
 
 # %%
-# Function to compare audio file with clusters
 def compareAudio(file, clustering_name):
     audio_file_path = file.name
 
@@ -174,7 +173,8 @@ def compareAudio(file, clustering_name):
     
     # Calculate the closest clusters
     pca_columns = [col for col in df_file_pca.columns if col.startswith('PCA')]
-    pca_means_columns = [col for col in df_means.columns if col.startswith('PCA')]
+    pca_means_columns = [col for col in df_means.columns if col.startswith('PCA')][:2]
+    
     distances = cdist(df_file_pca[pca_columns], df_means[pca_means_columns], metric='euclidean')
     closest_cluster = np.argmin(distances, axis=1)
 
@@ -184,6 +184,8 @@ def compareAudio(file, clustering_name):
     cluster_counts = df_file_pca['closest_cluster'].value_counts().reset_index()
     cluster_counts.columns = ['cluster', 'count']
     bar_fig = px.bar(cluster_counts, x='cluster', y='count', title='Distribution of Closest Clusters')
+    bar_fig.update_layout(yaxis_range=[0, cluster_counts['count'].max() + 10])  # Ensure y-axis starts at 0
+    bar_fig.update_layout(xaxis_range=[0, hyp.k_means])  # Ensure y-axis starts at 0
     
     return fig, bar_fig
 
