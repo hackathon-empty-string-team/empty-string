@@ -18,6 +18,9 @@
 # %% [markdown]
 # The other file is a generated skeleton
 
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# ## Imports
+
 # %%
 import gradio as gr
 import os
@@ -37,6 +40,7 @@ import zipfile
 import shutil
 
 from scipy.spatial.distance import cdist
+from sklearn.decomposition import PCA
 
 # %% [markdown]
 # ## Outline of the necessary functions
@@ -114,27 +118,74 @@ def listClusterings(feature_dir):
 
 
 # %%
+def plotClustering(clustering_name):
+
+    pca_file = os.path.join(feature_dir_cl, f"p_{clustering_name}.csv")
+    
+
+
+# %%
 # Function to compare audio file with clusters
 def compareAudio(file, clustering_name):
     audio_file_path = file.name
-    hyp = getClusteringHyperparams(clustering_name)
-    file_features = extractFeaturesFromFile(audio_file_path, feature_dir_comp, hyp) # Output: Python.dict
+
+    # Load the clustering
+    clustering_file = os.path.join(feature_dir_cl, f"f_{clustering_name}.csv")
+    df_features = pd.read_csv(clustering_file)
     
     means_file = os.path.join(feature_dir_cl, f"m_{clustering_name}.csv")
     pca_file = os.path.join(feature_dir_cl, f"p_{clustering_name}.csv")
-    
+
+    # Load the cluster centers and PCA files
     df_means = pd.read_csv(means_file)
     df_pca = pd.read_csv(pca_file)
-    pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
+
+    hyp = getClusteringHyperparams(clustering_name)
+    file_features = extractFeaturesFromFile(audio_file_path, feature_dir_comp, hyp) # Output: Python.dict
+
+    # ========
+    # PLOTTING
+    # ========
+
+    # Perform PCA on the file features
+    pca = PCA(n_components=2)
+    pca_file_features = pca.fit_transform(file_features["features"])
     
-    distances = cdist(df_pca[pca_columns], df_means[pca_columns], metric='euclidean')
+    df_file_pca = pd.DataFrame(pca_file_features, columns=['PCA1', 'PCA2'])
+    df_file_pca['time_windows'] = file_features['time_windows']
+    
+    # Create Plotly scatter plot for clustered data
+    fig = px.scatter(df_pca, x='PCA_1', y='PCA_2', color='Cluster', title='PCA Plot of Audio Features')
+    
+    # Add black points for the comparison audio file
+    fig.add_scatter(x=df_file_pca['PCA1'], y=df_file_pca['PCA2'], mode='markers', marker=dict(color='black'), name='New Audio Features', text=df_file_pca['time_windows'])
+
+    # =====================
+    # CLOSEST CLUSTER PLOTS
+    # =====================
+    
+    # Calculate the closest clusters
+    pca_columns = [col for col in df_file_pca.columns if col.startswith('PCA')]
+    pca_means_columns = [col for col in df_means.columns if col.startswith('PCA')]
+    distances = cdist(df_file_pca[pca_columns], df_means[pca_means_columns], metric='euclidean')
     closest_cluster = np.argmin(distances, axis=1)
-    return str(closest_cluster)
+
+    df_file_pca['closest_cluster'] = closest_cluster
+
+    # Create a bar plot for the distribution of closest clusters
+    cluster_counts = df_file_pca['closest_cluster'].value_counts().reset_index()
+    cluster_counts.columns = ['cluster', 'count']
+    bar_fig = px.bar(cluster_counts, x='cluster', y='count', title='Distribution of Closest Clusters')
+    
+    return fig, bar_fig
 
 
 # %%
 
-# Building Gradio Interface
+# %% [markdown]
+# ## GradIO main code
+
+# %%
 with gr.Blocks() as demo:
     with gr.Tab("Run the Clustering!"):
         gr.Markdown("### Run the Clustering!")
@@ -164,13 +215,18 @@ with gr.Blocks() as demo:
         clustering_name = gr.Dropdown(choices=listClusterings(feature_dir_cl), label="Clustering")
         #M = gr.Slider(1, 10, label="Number of Closest Clusters (M)")
         compare_button = gr.Button("Compare")
-        output_cluster = gr.Textbox(label="Closest Clusters")
 
-        # Link the button click event to the compareAudio function
-        compare_button.click(compareAudio, inputs=[file, clustering_name], outputs=output_cluster)
     
     with gr.Tab("Results"):
-        gr.Markdown("### Your audio file was mapped to 5 clusters!")
-        # This tab could display results of the comparison
+
+        cluster_plot = gr.Plot(label="Feature Vectors with Closest Cluster")
+        pca_plot = gr.Plot(label="PCA Plot")
+
+    # Link the button click event to the compareAudio function
+    compare_button.click(compareAudio, inputs=[file, clustering_name], outputs=[pca_plot, cluster_plot])
 
 demo.launch(share=True)
+
+# %%
+
+# %%

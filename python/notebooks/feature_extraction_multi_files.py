@@ -33,7 +33,7 @@ import plotly.express as px
 from datetime import datetime
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Helper Functions
 
 # %%
@@ -347,7 +347,7 @@ plot_dir = '/python/plots/'
 
 feature_dir = '/python/features/'
 
-max_files = 25
+max_files = 4
 
 n_clusters_kmeans = 10
 n_pca_components = 8
