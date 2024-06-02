@@ -14,7 +14,6 @@ license: apache-2.0
 
 ## Overview
 
-- [Checkout our demo](https://huggingface.co/spaces/hackathon-empty-string-team/empty-string)
 - [Welcome and minimal Setup](./docs/welcome-and-minimal-setup.md)
 - [Scope and problem statement](./docs/scope-and-problem-statement.md)
 
