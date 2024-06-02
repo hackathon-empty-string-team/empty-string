@@ -395,8 +395,7 @@ def extractFeaturesFromFile(audio_pth, feature_dir, hyp):
 def extractFeaturesFromFolder(audio_dir_pth, feature_dir, hyp):
 
     max_files = 2
-    print(audio_dir_path)
-    features_all_files = process_multiple_audiofiles(audio_dir_path, hyp)
+    features_all_files = process_multiple_audiofiles(audio_dir_pth, hyp)
 
     # Initialize empty lists to collect all feature values and corresponding metadata
     all_features = []

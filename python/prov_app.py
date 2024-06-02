@@ -61,10 +61,15 @@ def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_
     hyp = Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
     t0 = time.time()
     unzipped_folder_path = 'data/unzipped_folder'
-
+    temp_extract_path = 'data/temp_extracted'
+    
     # Ensure the unzipped folder path exists
     if not os.path.exists(unzipped_folder_path):
         os.makedirs(unzipped_folder_path)
+    
+    # Ensure the temp extract path exists
+    if not os.path.exists(temp_extract_path):
+        os.makedirs(temp_extract_path)
     
     # Clear the unzipped folder path
     for filename in os.listdir(unzipped_folder_path):
@@ -73,9 +78,26 @@ def runNewClustering(name, zipped_folder, w_dt, w_dt_shift, w_df, w_df_shift, n_
             os.unlink(file_path)
         elif os.path.isdir(file_path):
             shutil.rmtree(file_path)
+    
+    # Clear the temp extract path
+    for filename in os.listdir(temp_extract_path):
+        file_path = os.path.join(temp_extract_path, filename)
+        if os.path.isfile(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+    
     # Unzip the uploaded folder
     with zipfile.ZipFile(zipped_folder.name, 'r') as zip_ref:
-        zip_ref.extractall(unzipped_folder_path)
+        zip_ref.extractall(temp_extract_path)
+
+    # Move each file from the extracted folder to the unzipped folder path
+    for root, dirs, files in os.walk(temp_extract_path):
+        for file in files:
+            shutil.move(os.path.join(root, file), unzipped_folder_path)
+    
+    # Remove the temp extracted folder
+    shutil.rmtree(temp_extract_path)
 
     
     df_features, raw_features, _ = extractFeaturesFromFolder(unzipped_folder_path, feature_dir_cl, hyp)
