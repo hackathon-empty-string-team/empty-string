@@ -1,9 +1,20 @@
 ## Current standings
 
+- no models trained at this point
 - for implementation details check the code
 
 
-## rough overview
+## Idea
+
+- Train an encoder-decoder network on a set of complex soundfile patches 
+    - how exactly the patches would be generated is still up for discussion, though one idea was to do something similar to [vggish](https://github.com/tensorflow/models/blob/master/research/audioset/vggish/README.md)
+- Use the encoder side of the trained network for feature extraction
+- Cluster the extracted features
+- Find representative clusters for specific species
+- Label representative clusters
+
+
+## Overview
 
 - audio file is read, resampled and mel spectrograms are computed
 - there is overlap, e.g. one recording is put into 11 frames (here method differs from vggish where no overlap is computed, we can discuss this)
