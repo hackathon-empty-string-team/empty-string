@@ -144,6 +144,9 @@ def compareAudio(file, clustering_name):
     # Load the cluster centers and PCA files
     df_means = pd.read_csv(means_file)
     df_pca = pd.read_csv(pca_file)
+    df_pca['Filename'] = df_features['filename']  # Assuming 'filename' column exists
+    df_pca['Time Interval'] = df_features['time_window']  # Assuming 'time_windows' column exists
+    df_pca['hover_text'] = df_pca.apply(lambda row: f"Filename: {row['Filename']}<br>Time Interval: {row['Time Interval']}", axis=1)
 
     hyp = getClusteringHyperparams(clustering_name)
 
@@ -164,7 +167,7 @@ def compareAudio(file, clustering_name):
     df_file_pca['hover_text'] = df_file_pca['time_windows'].apply(lambda x: f"Time Interval: [{x[0]}, {x[1]}]")
     
     # Create Plotly scatter plot for clustered data
-    fig = px.scatter(df_pca, x='PCA_1', y='PCA_2', color='Cluster', title='PCA Plot of Audio Features')
+    fig = px.scatter(df_pca, x='PCA_1', y='PCA_2', color='Cluster', title='PCA Plot of Audio Features', text=df_pca['hover_text'])
     
     # Add black points for the comparison audio file
     fig.add_scatter(
