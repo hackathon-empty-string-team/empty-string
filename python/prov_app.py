@@ -146,6 +146,9 @@ def compareAudio(file, clustering_name):
     df_pca = pd.read_csv(pca_file)
 
     hyp = getClusteringHyperparams(clustering_name)
+
+    if not os.path.exists(feature_dir_comp):
+        os.makedirs(feature_dir_comp)
     file_features = extractFeaturesFromFile(audio_file_path, feature_dir_comp, hyp) # Output: Python.dict
 
     # ========
@@ -218,6 +221,8 @@ with gr.Blocks() as demo:
     with gr.Tab("Compare your Audio..."):
         gr.Markdown("### Compare your Audio...")
         file = gr.File(label="Upload your file", file_types=['audio'])
+        if not os.path.exists(feature_dir_cl):
+            os.makedirs(feature_dir_cl)
         clustering_name = gr.Dropdown(choices=listClusterings(feature_dir_cl), label="Clustering")
         compare_button = gr.Button("Compare")
 
