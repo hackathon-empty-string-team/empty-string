@@ -127,7 +127,12 @@ def plotClustering(clustering_name):
 
     pca_file = os.path.join(feature_dir_cl, f"p_{clustering_name}.csv")
     
-
+def loadFeatures_Comp(feature_file):
+    #load the features from the file. Each line is a feature vector, the two last columns are the time windows and name of the file. remove them. Remove also the first column which is the index
+    df = pd.read_csv(feature_file)
+    features = df.iloc[:, :-2].values
+    features = features[:, 1:]
+    return features
 
 # %%
 # Function to compare audio file with clusters
@@ -158,9 +163,15 @@ def compareAudio(file, clustering_name):
     # PLOTTING
     # ========
 
-    # Perform PCA on the file features
+    # recreate pca from the file
+    feature_path= os.path.join(feature_dir_cl, f"f_{clustering_name}.csv")
+
+    features = loadFeatures_Comp(feature_path)
+
     pca = PCA(n_components=2)
-    pca_file_features = pca.fit_transform(file_features["features"])
+    pca_model = pca.fit(features)
+    
+    pca_file_features = pca_model.transform(file_features["features"])
     
     df_file_pca = pd.DataFrame(pca_file_features, columns=['PCA1', 'PCA2'])
     df_file_pca['time_windows'] = file_features['time_windows']
@@ -222,6 +233,7 @@ with gr.Blocks() as demo:
         n_clusters_kmeans = gr.Slider(1, 10, value=5, label="n_clusters_kmeans", step=1)
         n_pca_components = gr.Slider(1, 10, value=3, label="n_pca_components", step=1)
         max_files = gr.Slider(0, 50, value=20, label="max_files", step=1)
+        
         
         run_button = gr.Button("Run!")
         output_text = gr.Textbox(label="Output")
