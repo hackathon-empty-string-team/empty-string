@@ -18,6 +18,28 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
+
+# %%
+def find_closest_clusters(df_pca, cluster_centres, cluster_file, feature_file):
+    
+    feature_dir = '/python/features/'
+    fname_cluster_centers = feature_dir + cluster_file
+    fname_feature_files =  feature_dir + feature_file
+
+    pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
+    
+    distances = cdist(df_pca[pca_columns], df_pca_cluster_centers[pca_columns], metric='euclidean')
+    
+    closest_clusters = np.argmin(distances, axis=1)
+    
+    # Add the closest cluster to df_pca_new
+    df_pca['Closest_Cluster'] = closest_clusters
+
+    return df_pca
+
+
+# %%
+
 # %%
 # config:
 

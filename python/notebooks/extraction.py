@@ -145,9 +145,7 @@ def get_features(spec_db, times, time_windows, frequencies, frequency_windows):
             # Extract the subsample based on the masks
             subsample = spec_db[f_mask][:, t_mask]
 
-            #normalize the subsample with the absolute maximum value
-            subsample = subsample / np.max(np.abs(subsample))
-
+            
             #print(subsample.shape)
         
             output_vector_np = apply_conv2d(subsample)
@@ -158,8 +156,8 @@ def get_features(spec_db, times, time_windows, frequencies, frequency_windows):
 
     return features
 
-
-def process_audio_file(audio_file_path, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift):
+# hi
+def process_audio_file(audio_file_path, hyp):
     """
     Process an audio file to extract features based on specified time and frequency windows.
     
@@ -183,21 +181,21 @@ def process_audio_file(audio_file_path, freq_min, freq_max, w_df, w_df_shift, w_
     amp, sr = librosa.load(audio_file_path, sr=None)  # Load amplitude and sampling rate from file
 
     # Get spectrogram
-    spec = librosa.stft(amp, n_fft=n_fft, hop_length=n_fft_shift)
+    spec = librosa.stft(amp, n_fft=hyp.n_fft, hop_length=hyp.n_fft_shift)
     spec_db = librosa.amplitude_to_db(np.abs(spec))
 
     # Set time windows
     n_sec_in_audio_file = len(amp) / sr
-    time_windows = get_windows(0, n_sec_in_audio_file, w_dt, w_dt_shift)
+    time_windows = get_windows(0, n_sec_in_audio_file, hyp.w_dt, hyp.w_dt_shift)
     
     # plot_spectrogram_with_windows(spec_db, sr, time_windows, frequency_windows, n_fft, n_fft_shift)
     
-    times = librosa.frames_to_time(np.arange(spec_db.shape[1]), sr=sr, n_fft=n_fft, hop_length=n_fft_shift)
+    times = librosa.frames_to_time(np.arange(spec_db.shape[1]), sr=sr, n_fft=hyp.n_fft, hop_length=hyp.n_fft_shift)
 
-    frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    frequencies = librosa.fft_frequencies(sr=sr, n_fft=hyp.n_fft)
 
     # Set frequency windows
-    frequency_windows = get_windows(freq_min, freq_max, w_df, w_df_shift, upper_bound=frequencies[-1])
+    frequency_windows = get_windows(hyp.freq_min, hyp.freq_max, hyp.w_df, hyp.w_df_shift, upper_bound=frequencies[-1])
 
     # Feature extraction
     features = get_features(spec_db, times, time_windows, frequencies, frequency_windows)
@@ -205,7 +203,7 @@ def process_audio_file(audio_file_path, freq_min, freq_max, w_df, w_df_shift, w_
     
     return audio_file_path, features, time_windows, frequency_windows
 
-def process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift):
+def process_multiple_audiofiles(audio_file_dir, hyp):
     features_all_files = []
 
     # Counter to limit the number of processed files
@@ -214,18 +212,14 @@ def process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w
     # Loop over filenames in the directory
     for filename in os.listdir(audio_file_dir):
         
-        if (filename.lower().endswith(".wav") or filename.lower().endswith(".mp3")) and file_count < max_files:  # Process only .wav files and limit to max_files
+        if filename.lower().endswith(".wav") and file_count < hyp.max_files:  # Process only .wav files and limit to max_files
             file_path = os.path.join(audio_file_dir, filename)
             #('processing ', filename)
 
             start_time = time.time()
 
             audio_file_path, features, time_windows, frequency_windows = process_audio_file(
-                file_path,
-                freq_min, freq_max,
-                w_df, w_df_shift,
-                w_dt, w_dt_shift,
-                n_fft, n_fft_shift
+                file_path, hyp
             )
 
             # Create a dictionary for the current file
@@ -247,7 +241,7 @@ def process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w
             file_count += 1
 
         # Break the loop if we have processed the desired number of files
-        if file_count >= max_files:
+        if file_count >= hyp.max_files:
             break
 
     # Print a message after processing the limited number of files
@@ -323,6 +317,23 @@ def plot_cluster_vs_absolute_time(df_pca):
 # %% [markdown]
 # # GradIO functions & testing
 
+# %%
+class Hyperparams():
+
+    def __init__(self, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components):
+        self.w_dt = w_dt
+        self.w_dt_shift = w_dt_shift
+        self.w_df = w_df
+        self.w_df_shift = w_df_shift
+        self.n_fft = n_fft
+        self.n_fft_shift = n_fft_shift
+        self.n_clusters_kmeans = n_clusters_kmeans
+        self.n_pca_components = n_pca_components
+        self.freq_min = 0
+        self.freq_max = 40000
+        self.max_files = 26
+
+
 # %% [markdown]
 # ## config
 
@@ -347,7 +358,6 @@ plot_dir = '/python/plots/'
 
 feature_dir = '/python/features/'
 
-max_files = 4
 
 n_clusters_kmeans = 10
 n_pca_components = 8
@@ -357,16 +367,12 @@ n_pca_components = 8
 # ## feature extraction & clustering functions
 
 # %%
-def extractFeaturesFromFile(audio_pth, feature_dir, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components):
+def extractFeaturesFromFile(audio_pth, feature_dir, hyp):
     plot_dir = '/python/plots/'
     feature_dir = '/python/features/'
 
     audio_file_path, features, time_windows, frequency_windows = process_audio_file(
-                audio_pth,
-                freq_min, freq_max,
-                w_df, w_df_shift,
-                w_dt, w_dt_shift,
-                n_fft, n_fft_shift
+                audio_pth, hyp
             )
 
     # Create a dictionary for the current file
@@ -385,10 +391,9 @@ def extractFeaturesFromFile(audio_pth, feature_dir, w_dt, w_dt_shift, w_df, w_df
 
 
 # %%
-def extractFeaturesFromFolder(audio_dir_pth, feature_dir, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components):
+def extractFeaturesFromFolder(audio_dir_pth, feature_dir, hyp):
 
-    max_files = 2
-    features_all_files = process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift)
+    features_all_files = process_multiple_audiofiles(audio_dir_pth, hyp)
 
     # Initialize empty lists to collect all feature values and corresponding metadata
     all_features = []
@@ -438,7 +443,7 @@ def extractFeaturesFromFolder(audio_dir_pth, feature_dir, w_dt, w_dt_shift, w_df
 
 
 # %%
-def getClustering(n_clusters_kmeans, n_pca_components, raw_features, df_features):
+def getClustering(n_clusters_kmeans, n_pca_components, df_features, raw_features):
 
     # Perform KMeans clustering
     kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(raw_features)
@@ -466,6 +471,54 @@ def getClustering(n_clusters_kmeans, n_pca_components, raw_features, df_features
 
 
 # %%
+class Hyperparams():
+
+    def __init__(self, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components, max_files=26):
+        self.w_dt = w_dt
+        self.w_dt_shift = w_dt_shift
+        self.w_df = w_df
+        self.w_df_shift = w_df_shift
+        self.n_fft = n_fft
+        self.n_fft_shift = n_fft_shift
+        self.n_clusters_kmeans = n_clusters_kmeans
+        self.n_pca_components = n_pca_components
+        self.freq_min = 0
+        self.freq_max = 40000
+        self.max_files = max_files
+
+
+def hyperparamsToDict(hyp):
+
+    hyp_dict = {}
+    hyp_dict["w_dt"] = [hyp.w_dt]
+    hyp_dict["w_dt_shift"] = [hyp.w_dt_shift]
+    hyp_dict["w_df"] = [hyp.w_df]
+    hyp_dict["w_df_shift"] = [hyp.w_df_shift]
+    hyp_dict["n_fft"] = [hyp.n_fft]
+    hyp_dict["n_fft_shift"] = [hyp.n_fft_shift]
+    hyp_dict["n_clusters_kmeans"] = [hyp.n_clusters_kmeans]
+    hyp_dict["n_pca_components"] = [hyp.n_pca_components]
+
+    return hyp_dict
+
+def dictToHyperparams(hyp_dict):
+
+    
+    w_dt = hyp_dict["w_dt"][0]
+    w_dt_shift = hyp_dict["w_dt_shift"][0]
+    w_df = hyp_dict["w_df"][0]
+    w_df_shift = hyp_dict["w_df_shift"][0]
+    n_fft = hyp_dict["n_fft"][0]
+    n_fft_shift = hyp_dict["n_fft_shift"][0]
+    n_clusters_kmeans = hyp_dict["n_clusters_kmeans"][0]
+    n_pca_components = hyp_dict["n_pca_components"][0]
+
+    print(n_fft_shift)
+
+    return Hyperparams(w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, n_clusters_kmeans, n_pca_components)
+
+
+# %%
 def saveFeatures_Comp(feature_dir, features):
 
     pure_features = features["features"]
@@ -478,271 +531,16 @@ def saveFeatures_Comp(feature_dir, features):
 
     df.to_csv(fname)
 
-def saveFeatures_Clustering(feature_dir, name, df_features, df_pca, df_mean_pca_by_cluster):
+def saveFeatures_Clustering(feature_dir, name, df_features, df_pca, df_mean_pca_by_cluster, hyp):
 
     fname_features = os.path.join(feature_dir, "f_" + name + ".csv")
     fname_pca = os.path.join(feature_dir, "p_" + name + ".csv")
     fname_mean = os.path.join(feature_dir, "m_" + name + ".csv")
+    fname_hyp = os.path.join(feature_dir, "h_"+ name + ".csv")
+
+    df_hyp = pd.DataFrame.from_dict(hyperparamsToDict(hyp))
 
     df_features.to_csv(fname_features)
     df_pca.to_csv(fname_pca)
-    df_mean_pca_by_cluster.to_csv(fname_mean)    
-
-
-# %%
-# time sampling parameters
-w_dt = 0.5 # time window of each sample [sec]
-w_dt_shift = 0.5 # time by which samples are shifted [sec]
-
-# frequency sampling parameters
-w_df = 4000 # ferquency indow of each sample [Hz]
-w_df_shift = 4000 # ferquency by which windows are shifted [Hz]
-
-# fft parameters
-n_fft = 512 # number of sampling points in sub-samples used for fft (sets time resolution of spectra)
-n_fft_shift = 256 # number of sampling points by which fft sub-samples are shifted
-
-freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
-
-n_clusters_kmeans = 10
-n_pca_components = 8
-
-# Two feature directories, one for the clustering features and one for the comparison features
-feature_dir_cl = "../data/features_cluster"
-feature_dir_comp = "../data/features_comp"
-audio_dir_pth = "../data/audio_files"
-audio_pth = "../data/audio_files/20231106_143000.WAV"
-
-name = "my-cluster-1"
-
-t0 = time.time()
-
-single_audio_features = extractFeaturesFromFile(audio_pth, feature_dir_comp, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components)
-df_features, raw_features, correlation_matrix = extractFeaturesFromFolder(audio_dir_pth, feature_dir_cl, w_dt, w_dt_shift, w_df, w_df_shift, n_fft, n_fft_shift, freq_min, freq_max, n_clusters_kmeans, n_pca_components)
-t1 = time.time() - t0
-
-# %%
-df_pca, mean_pca_values_by_cluster = getClustering(n_clusters_kmeans, n_pca_components, raw_features, df_features)
-
-# %%
-saveFeatures_Comp(feature_dir_comp, single_audio_features)
-
-# %%
-saveFeatures_Clustering(feature_dir_cl, name, df_features, df_pca, mean_pca_values_by_cluster)
-
-# %% [markdown]
-# # Notebook code
-
-# %%
-features_all_files = process_multiple_audiofiles(audio_file_dir, max_files, freq_min, freq_max, w_df, w_df_shift, w_dt, w_dt_shift, n_fft, n_fft_shift)
-
-# %% [markdown]
-# ### make sure there is no invalid window processing going on 
-
-# %%
-none_count, none_files = count_none_frequency_windows(features_all_files)
-print(f"Number of dictionaries with None frequency_windows: {none_count}")
-print("Files with None frequency_windows:", none_files)
-
-# %% [markdown]
-# ## look at distribution of all feature values 
-
-# %%
-# Initialize empty lists to collect all feature values and corresponding metadata
-all_features = []
-all_time_windows = []
-all_filenames = []
-
-# Loop through the list of dictionaries and collect feature values and metadata
-for file_data in features_all_files:
-    filename = file_data["filename"]
-    features = file_data["features"]
-    time_windows = file_data["time_windows"]
-
-    for i, feature_array in enumerate(features):
-        all_features.append(feature_array)  # Collect feature arrays
-        all_time_windows.append(time_windows[i] if i < len(time_windows) else None)
-        all_filenames.append(filename)
-
-# Convert the list of feature arrays into a single numpy array
-all_features = np.vstack(all_features)
-
-# Convert the numpy array to a pandas DataFrame
-df_features = pd.DataFrame(all_features, columns=[f'var_{i+1}' for i in range(len(all_features[0]))])
-
-# Add the time windows and filenames to the DataFrame
-df_features['time_window'] = all_time_windows
-df_features['filename'] = all_filenames
-
-# %%
-df_features.info()
-
-# %%
-# Plot the histogram of all feature values
-plt.hist(df_features.iloc[:, 0], alpha=0.5)
-plt.xlabel('Feature Value')
-plt.ylabel('Frequency')
-plt.title('Distribution of Feature Values Across All Files')
-plt.show()
-
-# %% [markdown]
-# ## plot correlation of features with the highest values
-
-# %%
-# Identify the features with the highest values
-# Here we assume "highest values" means the highest mean value for simplicity
-# Exclude non-numeric columns
-numeric_df_features = df_features.select_dtypes(include=[np.number])
-
-# Calculate the mean values of each column (feature)
-mean_values = numeric_df_features.mean()
-
-# Identify the top 100 features with the highest mean values
-top_features = mean_values.nlargest(100).index
-
-# Keep only these columns in the DataFrame
-df_features_reduced = numeric_df_features[top_features]
-
-# Calculate the correlation matrix
-correlation_matrix = df_features_reduced.corr()
-
-# Plot the correlation matrix using a heatmap
-plt.figure(figsize=(12, 10))
-sns.heatmap(correlation_matrix, annot=False, cmap='coolwarm', vmin=-1, vmax=1)
-plt.title('Correlation Matrix of Top 100 Features with Highest Mean Values')
-plt.show()
-
-# %% [markdown]
-# ### clustering and pca
-
-# %%
-# Perform KMeans clustering
-kmeans = KMeans(n_clusters=n_clusters_kmeans, random_state=0).fit(all_features)
-labels = kmeans.labels_
-
-# Apply PCA on the features
-pca = PCA(n_components=n_pca_components)
-features_pca = pca.fit_transform(all_features)
-
-# Create a DataFrame from the PCA features
-df_pca = pd.DataFrame(features_pca, columns=[f'PCA_{i+1}' for i in range(n_pca_components)])
-
-# Add the time windows, frequency windows, filenames, and cluster labels to the DataFrame
-df_pca['time_window'] = all_time_windows
-df_pca['filename'] = all_filenames
-df_pca['Cluster'] = labels
-
-# %%
-# Create a pair plot using Plotly
-fig = px.scatter_matrix(
-    df_pca,
-    dimensions=[f'PCA_{i+1}' for i in range(n_pca_components)],
-    color='Cluster',
-    hover_data={
-        'filename': True,
-        'time_window': True,
-    },
-    title='Pairwise Plot of PCA Components'
-)
-
-# Update layout for better visibility
-fig.update_layout(
-    width=1200,
-    height=1200,
-    dragmode='select',
-    hovermode='closest', 
-    coloraxis_showscale=False  # Disable color scale bar
-)
-
-# Show the plot
-fig.show()
-
-# %% [markdown]
-# ### trying to add labels to the features for reproducing sounds
-
-# %%
-import librosa
-import numpy as np
-from IPython.display import Audio
-import os
-
-time_window = (50.5, 51.0) # Convert the time window to sample indices
-# Load the audio file
-#filename = 'SM4XPRIZE_20240410_114402.wav' # use this to specify a file that you want to check from the clustering (hover over the plot above)
-filename = os.listdir(audio_file_dir)[0] # use this if you just want the first file in the directory
-
-
-
-# %%
-audio_file_path = os.path.join(audio_file_dir, filename)
-y, sr = librosa.load(audio_file_path, sr=None)
-
-# Convert the time window to sample indices
-start_sample = int(time_window[0] * sr)
-end_sample = int(time_window[1] * sr)
-
-# Extract the corresponding segment from the audio file
-y_segment = y[start_sample:end_sample]
-
-# Debugging: Check the extracted segment
-print("Extracted audio segment:")
-print(y_segment)
-
-# %%
-# Check if you can play the original segment
-print("Playing segment:")
-Audio(y_segment, rate=sr)
-
-
-
-# %% [markdown]
-# ## write features values into output file
-#
-# timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-# filename = feature_dir + f'sound_features_pca_{timestamp}.csv'
-# df_pca.to_csv(filename)
-#
-#
-
-# %% [markdown]
-# ## get cluster centers
-
-# %%
-# Identify PCA columns
-pca_columns = [col for col in df_pca.columns if col.startswith('PCA')]
-
-# Compute the mean of all PCA columns for each cluster
-mean_pca_values_by_cluster = df_pca.groupby('Cluster')[pca_columns].mean()
-
-# %%
-cols = ['PCA_1','PCA_2']
-
-plt.scatter(df_pca[cols[0]], df_pca[cols[1]], c=df_pca['Cluster'],cmap='jet')
-plt.scatter(mean_pca_values_by_cluster[cols[0]], mean_pca_values_by_cluster[cols[1]], c='k',marker='x',s=100)
-
-plt.xlabel(cols[0])
-plt.ylabel(cols[1])
-
-
-# %%
-def generate_filename(method='kmeans', n_clusters=None):
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if method.lower() == 'kmeans' and n_clusters is not None:
-        filename = f'cluster_centers_{method}_Nclust{n_clusters}_{timestamp}.csv'
-    else:
-        filename = f'mean_pca_values_{method}_{timestamp}.csv'
-    return filename
-
-
-
-# %%
-# Generate a meaningful filename
-filename = feature_dir + generate_filename('kmeans',n_clusters_kmeans)
-
-# Write the mean PCA values by cluster to a CSV file
-mean_pca_values_by_cluster.to_csv(filename)
-
-
-# plot cluster vs time (in hours), only works if filename is written as name_yyyymmdd_hhmmss.wav
-#plot_cluster_vs_absolute_time(df_pca)
+    df_mean_pca_by_cluster.to_csv(fname_mean)
+    df_hyp.to_csv(fname_hyp)
