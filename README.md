@@ -21,6 +21,10 @@ license: apache-2.0
 3. inference on labeled data
 
 
-## awesome data overview
+## Awesome Data Overview
+
+- The provided data for this hackathon is huge
+- In our project, we were working with sound data
+- Below you can see a sketch on the strucutre of the sound sources
 
 ![](./docs/data_overview_yuri.jpg)
