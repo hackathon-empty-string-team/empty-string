@@ -124,25 +124,15 @@ def listClusterings(feature_dir):
 
 
 # %%
-<<<<<<< HEAD
-def plotClustering(clustering_name):
 
-    pca_file = os.path.join(feature_dir_cl, f"p_{clustering_name}.csv")
     
-def loadFeatures_Comp(feature_file):
-    #load the features from the file. Each line is a feature vector, the two last columns are the time windows and name of the file. remove them. Remove also the first column which is the index
-    df = pd.read_csv(feature_file)
-    features = df.iloc[:, :-2].values
-    features = features[:, 1:]
-    return features
-=======
+
 def loadFeatures_Comp(feature_file):
     #load the features from the file. Each line is a feature vector, the two last columns are the time windows and name of the file. remove them. Remove also the first column which is the index
     df = pd.read_csv(feature_file)
     features = df.iloc[:, 1:-2].values
     return features
 
->>>>>>> new_frontend
 
 # %%
 # Function to compare audio file with clusters
