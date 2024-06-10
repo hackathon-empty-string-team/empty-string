@@ -341,7 +341,8 @@ n_fft_shift = 256 # number of sampling points by which fft sub-samples are shift
 
 freq_min, freq_max =  0.0, 48000.0 # min/max frequency of spectra [Hz]
 
-audio_file_dir = '/python/data/audio_files'
+# audio_file_dir = '/python/data/audio_files'
+audio_file_dir = '/python/bird_sounds'
 # audio_file_dir = '/python/data/SoundMeters_Ingles_Primary-20240519T132658Z-009/SoundMeters_Ingles_Primary/'
 plot_dir = '/python/plots/'
 
@@ -510,8 +511,13 @@ n_pca_components = 8
 # Two feature directories, one for the clustering features and one for the comparison features
 feature_dir_cl = "../data/features_cluster"
 feature_dir_comp = "../data/features_comp"
-audio_dir_pth = "../data/audio_files"
-audio_pth = "../data/audio_files/20231106_143000.WAV"
+# audio_dir_pth = "../data/audio_files"
+# audio_pth = "../data/audio_files/20231106_143000.WAV"
+audio_dir_pth = "../bird_sounds/"
+audio_pth = "../bird_sounds/SM15XPRIZE_20240411_160702.wav"
+
+
+# check if directoris exists and create them, if they
 
 name = "my-cluster-1"
 
@@ -745,4 +751,178 @@ mean_pca_values_by_cluster.to_csv(filename)
 
 
 # plot cluster vs time (in hours), only works if filename is written as name_yyyymmdd_hhmmss.wav
-#plot_cluster_vs_absolute_time(df_pca)
+plot_cluster_vs_absolute_time(df_pca)
+
+
+# %%
+def plot_cluster_vs_absolute_time(df_pca):
+    filenames = df_pca["filename"].to_numpy()
+    time_windows = df_pca["time_window"].to_numpy()
+    clusters = df_pca["Cluster"].to_numpy()
+
+    absolute_times = []
+    for filename, time_window in zip(filenames, time_windows):
+        time_ymd = filename.split('_')[1]
+        time_ymd = time_ymd.split('.')[0]
+        time_hms = filename.split('_')[2]
+        time_hms = time_hms.split('.')[0]
+        # transform time_str to absolute time in seconds
+        time_str = f'{time_ymd}{time_hms}'
+        time_sec = 0
+        time_sec = int(time_str[-2:])  # seconds
+        time_sec += time_window[0]  # beginning of time window
+        time_str = time_str[:-2]
+        time_sec += int(time_str[-2:]) * 60  # minutes
+        time_str = time_str[:-2]
+        time_sec += int(time_str[-2:]) * 60 * 60  # hours
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24  # days
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24 * 30  # months
+        time_str = time_str[:-2]
+        time_sec += int(time_str) * 60 * 60 * 24 * 30 * 365  # years
+        absolute_times.append(time_sec)
+
+    absolute_times = np.array(absolute_times)
+
+    # substraction of the first time to have time in seconds from the beginning of the recording
+    absolute_times -= np.min(absolute_times)
+
+    # transform absolute time to hours
+    absolute_times /= 3600
+
+    # plot cluster vs absolute time
+    plt.figure()
+    plt.scatter(absolute_times, clusters)
+    plt.xlabel('Absolute time [hours]')
+    plt.ylabel('Cluster')
+    plt.title('Cluster vs Absolute time')
+    plt.show()
+    
+    #plot each cluster histogram, each in a subplot, keep the same x-axis
+    for cluster in np.unique(clusters):
+        plt.figure()
+        plt.hist(absolute_times[clusters == cluster], range=(0, np.max(absolute_times)), bins=20)
+        plt.xlabel('Absolute time [hours]')
+        plt.ylabel('Frequency')
+        plt.title(f'Cluster {cluster} vs Absolute time')
+        plt.show()
+
+
+# %%
+list(df_pca)
+
+# %%
+filename = df_pca.filename.unique()[0]
+
+# %%
+sample = df_pca[df_pca.filename==filename]
+
+# %%
+time_windows = sample["time_window"].to_numpy()
+
+# %%
+absolute_times = []
+for w in time_windows:
+    absolute_times.append(np.mean(w))
+
+# %%
+len(sample.Cluster)
+
+# %%
+len(sample["time_window"])
+
+# %%
+plt.title(filename)
+plt.scatter(absolute_times,sample.Cluster)
+
+# %%
+audio_file_path = audio_dir_pth + filename
+
+# %%
+
+# %%
+n_fft, n_fft_shift
+
+# %%
+audio_file_path, features, time_windows, frequency_windows = process_audio_file(
+    audio_file_path,
+    freq_min, freq_max,
+    w_df, w_df_shift,
+    w_dt, w_dt_shift,
+    n_fft, n_fft_shift
+)
+
+# %%
+len(features), len(features[0])
+
+# %%
+# Get spectrogram
+amp, sr = librosa.load(audio_file_path, sr=None)  # Load amplitude and sampling rate from file
+spec = librosa.stft(amp, n_fft=n_fft, hop_length=n_fft_shift)
+spec_db = librosa.amplitude_to_db(np.abs(spec))
+
+# Set time windows
+n_sec_in_audio_file = len(amp) / sr
+time_windows = get_windows(0, n_sec_in_audio_file, w_dt, w_dt_shift)
+
+# %%
+fig, ax = plt.subplots(2,1, sharex=True, figsize=(10,10))
+
+ax[0].scatter(absolute_times,sample.Cluster)
+
+
+librosa.display.specshow(spec_db, sr=sr, x_axis='time', y_axis='linear', cmap='rainbow', ax=ax[1], n_fft=n_fft, hop_length=n_fft_shift)
+
+for lo, hi in time_windows:
+    plt.axvline(x=lo, ls='-', c='r', lw=0.5)
+    plt.axvline(x=hi, ls='-', c='r', lw=0.5)
+    
+for i, (lo, hi) in enumerate(frequency_windows):
+    plt.axhline(y=lo,ls='-',c='r', lw=0.5)
+    plt.axhline(y=hi,ls='-',c='r', lw=0.5)
+
+ax[0].set_ylabel('cluster ID')
+ax[0].set_title(filename)
+
+plt.tight_layout()
+
+
+# %%
+def get_features(spec_db, times, time_windows, frequencies, frequency_windows):
+    features = []
+    
+    for i, (tlo, thi) in enumerate(time_windows):
+    
+        features_in_time_window = []
+        
+        for j, (flo, fhi) in enumerate(frequency_windows):
+
+            assert tlo != thi, "Tlo is equal thi"
+            
+            t_mask = (times >= tlo) & (times <= thi)
+            f_mask = (frequencies >= flo) & (frequencies <= fhi)
+
+            #print(flo, fhi, frequencies)
+        
+            # Extract the subsample based on the masks
+            subsample = spec_db[f_mask][:, t_mask]
+
+            #normalize the subsample with the absolute maximum value
+            subsample = subsample / np.max(np.abs(subsample))
+
+            #print(subsample.shape)
+        
+            output_vector_np = apply_conv2d(subsample)
+        
+            features_in_time_window.append(output_vector_np)
+    
+        features.append(np.array(features_in_time_window).flatten())
+
+    return features
+
+
+# %%
+get_features(spec_db, times, time_windows, frequencies, frequency_windows)
+
+# %%
